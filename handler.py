@@ -151,6 +151,10 @@ def validate(file_name):
         return False
     return True
 
+def normalize(file_name):
+    (root, ext) = os.path.splitext(file_name)
+    return root + ext.lower()
+
 def getConfig(context, ssm_names=SSM_NAMES):
     ret = {}
     for key, value in ssm_names.items():
@@ -178,7 +182,7 @@ def handler(event, context):
           "Key": unquote_plus(record["s3"]["object"]["key"]),
         }
         print("New file detected in {}: {}".format(md["Bucket"], md["Key"]))
-        md["FileName"] = ntpath.basename(md["Key"])
+        md["FileName"] = normalize(ntpath.basename(md["Key"]))
         if validate(md["FileName"]):
           process_image(md, config)
         else:
