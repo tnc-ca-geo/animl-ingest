@@ -16,15 +16,15 @@ from lambda_cache import ssm
 EXIFTOOL_PATH = "{}/exiftool".format(os.environ["LAMBDA_TASK_ROOT"])
 SUPPORTED_FILE_TYPES = [".jpg", ".png"]
 IMG_SIZES = {
-  'original': None,
-  'medium': (940, 940),
-  'small': (120, 120)
+    "original": None,
+    "medium": (940, 940),
+    "small": (120, 120)
 }
 SSM_NAMES = {
-    "ANIML_API_URL": "animl-api-url-{}".format(os.environ["STAGE"]),
-    "ARCHIVE_BUCKET": "animl-images-archive-bucket-{}".format(os.environ["STAGE"]),
-    "PROD_BUCKET": "animl-images-prod-bucket-{}".format(os.environ["STAGE"]),
-    "DEADLETTER_BUCKET": "animl-images-dead-letter-bucket-{}".format(os.environ["STAGE"]),
+    "ANIML_API_URL": "/api/url-{}".format(os.environ["STAGE"]),
+    "ARCHIVE_BUCKET": "/images/archive-bucket-{}".format(os.environ["STAGE"]),
+    "SERVING_BUCKET": "/images/serving-bucket-{}".format(os.environ["STAGE"]),
+    "DEADLETTER_BUCKET": "/images/dead-letter-bucket-{}".format(os.environ["STAGE"]),
 }
 QUERY = gql("""
     mutation CreateImageRecord($input: CreateImageInput!){
@@ -62,8 +62,9 @@ def copy_to_archive(md):
     copy_source = { "Bucket": md["Bucket"], "Key": md["Key"] }
     file_base, file_ext = os.path.splitext(md["FileName"])
     archive_filename = file_base + "_" + md["Hash"] + file_ext
-    print("Transferring {} to {}".format(md["FileName"], archive_bkt))
-    s3.copy(copy_source, archive_bkt, archive_filename)
+    archive_key = os.path.join(md["SerialNumber"], archive_filename)
+    print("Transferring {} to {}".format(archive_key, archive_bkt))
+    s3.copy(copy_source, archive_bkt, archive_key)
     return md
 
 def copy_to_prod(md, sizes=IMG_SIZES):
@@ -115,7 +116,7 @@ def enrich_meta_data(md, exif_data, config):
     md["FileTypeExtension"] = md["FileTypeExtension"].lower() or file_ext
     md["SerialNumber"] = md.get("SerialNumber") or "unknown"
     md["ArchiveBucket"] = config["ARCHIVE_BUCKET"]
-    md["ProdBucket"] = config["PROD_BUCKET"]
+    md["ProdBucket"] = config["SERVING_BUCKET"]
     md["Hash"] = hash(md["SourceFile"])
     return md
 
@@ -159,11 +160,12 @@ def getConfig(context, ssm_names=SSM_NAMES):
     ret = {}
     for key, value in ssm_names.items():
         try:
-            ret[key] = getattr(context,"config").get(value)
+            param_name = value.split("/")[-1]
+            ret[key] = getattr(context,"config").get(param_name)
             if ret[key] is None:
                 raise ValueError(value)
         except ValueError as err:
-            print("SSN name '{}' was not found".format(err))
+            print("SSM name '{}' was not found".format(err))
         except:
             print("An error occured fetching remote config")
     return ret
@@ -174,7 +176,7 @@ def getConfig(context, ssm_names=SSM_NAMES):
   max_age_in_seconds=300
 )
 def handler(event, context):
-    print('event: {}'.format(event))
+    print("event: {}".format(event))
     config = getConfig(context)
     for record in event["Records"]:
         md = {

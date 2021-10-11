@@ -16,23 +16,30 @@ provider:
         - Fn::Join:
           - ''
           - - 'arn:aws:s3:::'
-            - Ref: S3BucketAnimldatastaging
+            - Ref: S3BucketAnimlimagesingestion
         - Fn::Join:
           - ''
           - - 'arn:aws:s3:::'
-            - Ref: S3BucketAnimldatastaging
+            - Ref: S3BucketAnimlimagesingestion
             - '/*'
     - Effect: Allow
       Action:
         - ssm:GetParameter
         - ssm:GetParameters
-      Resource: !Sub arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter/*
+      Resource: 
+        - !Sub arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter/*
+
   iamManagedPolicies:
     - 'arn:aws:iam::aws:policy/AWSLambdaExecute'
   environment:
     STAGE: ${opt:stage, self:provider.stage, 'dev'}
-    ANIML_API_URL: https://qxtg8jjpqf.execute-api.us-west-2.amazonaws.com/dev/internal
-    APIKEY: '{{resolve:secretsmanager:api-key:SecretString:apikey}}'
+    #TODO: get this dynamically fromm ssm param store. Also, not sure we need it at all?
+    # ANIML_API_URL: https://qxtg8jjpqf.execute-api.us-west-2.amazonaws.com/dev/internal
+    APIKEY: '{{resolve:secretsmanager:api-key-${self:provider.stage}:SecretString:apikey}}'
+    #  arn:aws:secretsmanager:us-west-2:830244800171:secret:api-key-dev-NJV45d
+    # APIKEY: '{{resolve:secretsmanager:api-key-dev-NJV45d:SecretString:apikey}}'
+    # APIKEY: ${ssm:/aws/reference/secretsmanager/api-key-${opt:stage, self:provider.stage, 'dev'}}
+    # value: '{{resolve:secretsmanager:api-key-${self:provider.stage}:SecretString:apikey}}'
 
 functions:
   IngestImage:
@@ -41,7 +48,7 @@ functions:
     maximumRetryAttempts: 0
     events:
       - s3:
-          bucket: animl-data-staging-${opt:stage, self:provider.stage, 'dev'}
+          bucket: animl-images-ingestion-${opt:stage, self:provider.stage, 'dev'}
           event: s3:ObjectCreated:*
           existing: true
     layers:
@@ -55,22 +62,22 @@ resources:
     # AWS Resources naming conventions in Serverless (for reference):
     # https://www.serverless.com/framework/docs/providers/aws/guide/resources/
 
-    # Staging bucket
-    S3BucketAnimldatastaging:
+    # Ingestion bucket
+    S3BucketAnimlimagesingestion:
       Type: AWS::S3::Bucket
       Properties:
-        BucketName: animl-data-staging-${opt:stage, self:provider.stage, 'dev'}
+        BucketName: animl-images-ingestion-${opt:stage, self:provider.stage, 'dev'}
         PublicAccessBlockConfiguration:
           BlockPublicAcls: true
           BlockPublicPolicy: true
           IgnorePublicAcls: true
           RestrictPublicBuckets: true
 
-    # Production bucket
-    S3BucketAnimldataproduction:
+    # Serving bucket
+    S3BucketAnimlimagesserving:
       Type: AWS::S3::Bucket
       Properties:
-        BucketName: animl-data-production-${opt:stage, self:provider.stage, 'dev'}
+        BucketName: animl-images-serving-${opt:stage, self:provider.stage, 'dev'}
         PublicAccessBlockConfiguration:
           BlockPublicAcls: true
           BlockPublicPolicy: true
@@ -78,10 +85,10 @@ resources:
           RestrictPublicBuckets: true
 
     # Archive bucket
-    S3BucketAnimldataarchive:
+    S3BucketAnimlimagesarchive:
       Type: AWS::S3::Bucket
       Properties:
-        BucketName: animl-data-archive-${opt:stage, self:provider.stage, 'dev'}
+        BucketName: animl-images-archive-${opt:stage, self:provider.stage, 'dev'}
         PublicAccessBlockConfiguration:
           BlockPublicAcls: true
           BlockPublicPolicy: true
@@ -89,22 +96,22 @@ resources:
           RestrictPublicBuckets: true
     
     # Dead letter bucket
-    S3BucketAnimldatadeadletter:
+    S3BucketAnimlimagesdeadletter:
       Type: AWS::S3::Bucket
       Properties:
-        BucketName: animl-data-dead-letter-${opt:stage, self:provider.stage, 'dev'}
+        BucketName: animl-images-dead-letter-${opt:stage, self:provider.stage, 'dev'}
         PublicAccessBlockConfiguration:
           BlockPublicAcls: true
           BlockPublicPolicy: true
           IgnorePublicAcls: true
           RestrictPublicBuckets: true
 
-    # Bucket policy for animl-data-staging
-    S3BucketPolicyAnimlDataStagingBucketPolicy:
+    # Bucket policy for animl-images-ingestion
+    S3BucketPolicyAnimlImagesIngestionBucketPolicy:
       Type: AWS::S3::BucketPolicy
       Properties: 
         Bucket: 
-          Ref: S3BucketAnimldatastaging
+          Ref: S3BucketAnimlimagesingestion
         PolicyDocument: 
           Statement: 
             -
@@ -112,13 +119,13 @@ resources:
                 - "s3:*"
               Effect: "Allow"
               Resource:
-                - "arn:aws:s3:::animl-data-staging-${opt:stage, self:provider.stage, 'dev'}/*"
-                - "arn:aws:s3:::animl-data-staging-${opt:stage, self:provider.stage, 'dev'}"
+                - "arn:aws:s3:::animl-images-ingestion-${opt:stage, self:provider.stage, 'dev'}/*"
+                - "arn:aws:s3:::animl-images-ingestion-${opt:stage, self:provider.stage, 'dev'}"
               Principal:
                 AWS: "arn:aws:iam::830244800171:user/animl-base"
 
     # Lambda Permission grants the bucket permission to invoke the function
-    LambdaPermissionAnimldatastaging:
+    LambdaPermissionAnimlimagesingestion:
       Type: AWS::Lambda::Permission
       Properties:
         FunctionName:
@@ -129,43 +136,43 @@ resources:
         Action: lambda:InvokeFunction
         SourceAccount:
           Ref: AWS::AccountId
-        SourceArn: arn:aws:s3:::animl-data-staging-${opt:stage, self:provider.stage, 'dev'}
+        SourceArn: arn:aws:s3:::animl-images-ingestion-${opt:stage, self:provider.stage, 'dev'}
 
-    # TODO: SSL certificate for production bucket Cloudfront distrobution?
+    # TODO: SSL certificate for image serving bucket Cloudfront distrobution?
     # only need if we want a custom CNAME
     # https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-cloudfront-distribution-viewercertificate.html
 
-    # Origin Access Identity for production bucket Cloudfront distrobution
-    CloudfrontOriginAccessIdentityAnimldataproduction:
+    # Origin Access Identity for serving bucket Cloudfront distrobution
+    CloudfrontOriginAccessIdentityAnimlimagesserving:
       Type: AWS::CloudFront::CloudFrontOriginAccessIdentity
       Properties:
         CloudFrontOriginAccessIdentityConfig:
-          Comment: "orign access identity for animl data production ${opt:stage, self:provider.stage, 'dev'} bucket"
+          Comment: "orign access identity for animl images serving ${opt:stage, self:provider.stage, 'dev'} bucket"
 
-    # Cloudfront distrobution for production bucket
+    # Cloudfront distrobution for serving bucket
     # API docs - https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-resource-cloudfront-distribution.html    
-    CloudfrontDistributionAnimldataproduction:
+    CloudfrontDistributionAnimlimagesserving:
       DependsOn:
-        - S3BucketAnimldataproduction
-        - CloudfrontOriginAccessIdentityAnimldataproduction
+        - S3BucketAnimlimagesserving
+        - CloudfrontOriginAccessIdentityAnimlimagesserving
       Type: AWS::CloudFront::Distribution
       Properties:
         DistributionConfig:
           Origins:
-          - DomainName: animl-data-production-${opt:stage, self:provider.stage, 'dev'}.s3.amazonaws.com
-            Id: !Ref S3BucketAnimldataproduction
+          - DomainName: animl-images-serving-${opt:stage, self:provider.stage, 'dev'}.s3.amazonaws.com
+            Id: !Ref S3BucketAnimlimagesserving
             S3OriginConfig:
               OriginAccessIdentity:
                 Fn::Join:
                   - ""
                   - - "origin-access-identity/cloudfront/"
-                    - !Ref CloudfrontOriginAccessIdentityAnimldataproduction
+                    - !Ref CloudfrontOriginAccessIdentityAnimlimagesserving
           Enabled: 'true'
-          Comment: "Cloudfront distro for animl data production ${opt:stage, self:provider.stage, 'dev'} bucket"
+          Comment: "Cloudfront distro for animl images serving ${opt:stage, self:provider.stage, 'dev'} bucket"
           Logging:
             IncludeCookies: 'false'
             Bucket: animllogs.s3.amazonaws.com
-            Prefix: animl-data-production-${opt:stage, self:provider.stage, 'dev'}
+            Prefix: animl-images-serving-${opt:stage, self:provider.stage, 'dev'}
           # Aliases:
           # - mysite.example.com
           # - yoursite.example.com
@@ -174,7 +181,7 @@ resources:
             - GET
             - HEAD
             - OPTIONS
-            TargetOriginId: !Ref S3BucketAnimldataproduction
+            TargetOriginId: !Ref S3BucketAnimlimagesserving
             MinTTL: 86400  # 1 day - perhaps adjust for staging? 
             MaxTTL: 31536000  # 1 year
             ForwardedValues:
@@ -189,12 +196,12 @@ resources:
           ViewerCertificate:
               CloudFrontDefaultCertificate: 'true'
 
-    # Bucket policy for production bucket to allow cloudfront to access it
-    S3BucketPolicyAnimlDataProductionBucketPolicy:
+    # Bucket policy for serving bucket to allow cloudfront to access it
+    S3BucketPolicyAnimlImagesServingBucketPolicy:
       Type: AWS::S3::BucketPolicy
       Properties: 
         Bucket: 
-          Ref: S3BucketAnimldataproduction
+          Ref: S3BucketAnimlimagesserving
         PolicyDocument: 
           Statement: 
             -
@@ -202,14 +209,62 @@ resources:
                 - 's3:GetObject'
               Effect: "Allow"
               Resource:
-                - "arn:aws:s3:::animl-data-production-${opt:stage, self:provider.stage, 'dev'}/*"
-                - "arn:aws:s3:::animl-data-production-${opt:stage, self:provider.stage, 'dev'}"
+                - "arn:aws:s3:::animl-images-serving-${opt:stage, self:provider.stage, 'dev'}/*"
+                - "arn:aws:s3:::animl-images-serving-${opt:stage, self:provider.stage, 'dev'}"
               Principal:
                 AWS:
                   Fn::Join:
                     - ""
                     - - "arn:aws:iam::cloudfront:user/CloudFront Origin Access Identity "
-                      - !Ref CloudfrontOriginAccessIdentityAnimldataproduction
+                      - !Ref CloudfrontOriginAccessIdentityAnimlimagesserving
+
+    # SSM Param for ingestion bucket
+    SSMParameterAnimlimagesingestionbucket:
+      Type: AWS::SSM::Parameter
+      Properties:
+        Description: Animl images ingestion bucket name
+        Name: /images/ingestion-bucket-${opt:stage, self:provider.stage, 'dev'}
+        Type: String
+        Value: animl-images-ingestion-${opt:stage, self:provider.stage, 'dev'}
+
+    # SSM Param - serving bucket
+    SSMParameterAnimlimagesservingbucket:
+      Type: AWS::SSM::Parameter
+      Properties:
+        Description: Animl images serving bucket name
+        Name: /images/serving-bucket-${opt:stage, self:provider.stage, 'dev'}
+        Type: String
+        Value: animl-images-serving-${opt:stage, self:provider.stage, 'dev'}
+
+    # SSM Param - archive bucket
+    SSMParameterAnimlimagesarchivebucket:
+      Type: AWS::SSM::Parameter
+      Properties:
+        Description: Animl images archive bucket name
+        Name: /images/archive-bucket-${opt:stage, self:provider.stage, 'dev'}
+        Type: String
+        Value: animl-images-archive-${opt:stage, self:provider.stage, 'dev'}
+
+    # SSM Param - dead-letter bucket
+    SSMParameterAnimlimagesdeadletterbucket:
+      Type: AWS::SSM::Parameter
+      Properties:
+        Description: Animl images dead-letter bucket name
+        Name: /images/dead-letter-bucket-${opt:stage, self:provider.stage, 'dev'}
+        Type: String
+        Value: animl-images-dead-letter-${opt:stage, self:provider.stage, 'dev'}
+
+    # SSM Param - serving bucket cloudfront url 
+    SSMParameterAnimlimagesservingdistrobution:
+      Type: AWS::SSM::Parameter
+      Properties:
+        Description: Animl images serving cloudfront url
+        Name: /images/url-${opt:stage, self:provider.stage, 'dev'}
+        Type: String
+        Value:
+          Fn::GetAtt: # grabs cloudfront url
+            - CloudfrontDistributionAnimlimagesserving
+            - DomainName
 
 custom:
   pythonRequirements:
