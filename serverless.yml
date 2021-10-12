@@ -46,7 +46,7 @@ functions:
     name: IngestImageLambdaFunction-${opt:stage, self:provider.stage, 'dev'}
     handler: handler.handler
     maximumRetryAttempts: 0
-    timeout: 10
+    timeout: 15
     events:
       - s3:
           bucket: animl-images-ingestion-${opt:stage, self:provider.stage, 'dev'}
