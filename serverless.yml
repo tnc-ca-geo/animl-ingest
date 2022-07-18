@@ -33,13 +33,8 @@ provider:
     - 'arn:aws:iam::aws:policy/AWSLambdaExecute'
   environment:
     STAGE: ${opt:stage, self:provider.stage, 'dev'}
-    #TODO: get this dynamically fromm ssm param store. Also, not sure we need it at all?
-    # ANIML_API_URL: https://qxtg8jjpqf.execute-api.us-west-2.amazonaws.com/dev/internal
     APIKEY: '{{resolve:secretsmanager:api-key-${self:provider.stage}:SecretString:apikey}}'
-    #  arn:aws:secretsmanager:us-west-2:830244800171:secret:api-key-dev-NJV45d
-    # APIKEY: '{{resolve:secretsmanager:api-key-dev-NJV45d:SecretString:apikey}}'
-    # APIKEY: ${ssm:/aws/reference/secretsmanager/api-key-${opt:stage, self:provider.stage, 'dev'}}
-    # value: '{{resolve:secretsmanager:api-key-${self:provider.stage}:SecretString:apikey}}'
+
 
 functions:
   IngestImage:
