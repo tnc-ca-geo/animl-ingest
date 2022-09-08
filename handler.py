@@ -47,6 +47,7 @@ def resize(md, filename, dims):
     return tmp_path
 
 def copy_to_dlb(errors, md, config):
+    print("copying to dlb")
     dl_bkt = config["DEADLETTER_BUCKET"]
     copy_source = { "Bucket": md["Bucket"], "Key": md["Key"] }
     dest_dir = "UNKNOWN_ERROR"
@@ -58,6 +59,7 @@ def copy_to_dlb(errors, md, config):
     s3.copy(copy_source, dl_bkt, dlb_key)
 
 def copy_to_archive(md):
+    print("copying to archive")
     archive_bkt = md["ArchiveBucket"]
     copy_source = { "Bucket": md["Bucket"], "Key": md["Key"] }
     file_base, file_ext = os.path.splitext(md["FileName"])
@@ -68,6 +70,7 @@ def copy_to_archive(md):
     return md
 
 def copy_to_prod(md, sizes=IMG_SIZES):
+    print("copying to prod")
     prod_bkt = md["ProdBucket"]
     for size, dims in sizes.items():
         # create filename and key
@@ -114,7 +117,7 @@ def enrich_meta_data(md, exif_data, config):
     md = exif_data
     file_ext = os.path.splitext(md["FileName"])[1].lower().replace(".", "")
     md["FileTypeExtension"] = md["FileTypeExtension"].lower() or file_ext
-    md["SerialNumber"] = md.get("SerialNumber") or "unknown"
+    md["SerialNumber"] = str(md.get("SerialNumber")) or "unknown"
     md["ArchiveBucket"] = config["ARCHIVE_BUCKET"]
     md["ProdBucket"] = config["SERVING_BUCKET"]
     md["Hash"] = hash(md["SourceFile"])
@@ -122,14 +125,13 @@ def enrich_meta_data(md, exif_data, config):
 
 def get_exif_data(img_path):
     os.environ["PATH"] = "{}:{}/".format(os.environ["PATH"], EXIFTOOL_PATH)
-    with exiftool.ExifTool() as et:
+    with exiftool.ExifToolHelper() as et:
         ret = {}
-        exif_data = et.get_metadata(img_path)
-        # remove "group names" from keys/exif-tags
-        for key, value in exif_data.items():
-            # print("exif key: {}, value: {}".format(key, value))
-            new_key = key if (":" not in key) else key.split(":")[1]
-            ret[new_key] = value
+        for d in et.get_metadata(img_path):
+            for k, v in d.items():
+                print(f"exif key: {k}, value: {v} (type: {type(v)})")
+                new_key = k if (":" not in k) else k.split(":")[1]
+                ret[new_key] = v
         return ret
 
 def download(bucket, key):
@@ -143,6 +145,7 @@ def download(bucket, key):
 def process_image(md, config):
     tmp_path = download(md["Bucket"], md["Key"])
     exif_data = get_exif_data(tmp_path)
+    print(f"exif_data: {exif_data}")
     md = enrich_meta_data(md, exif_data, config)
     save_image(md, config)
 
@@ -156,7 +159,7 @@ def normalize(file_name):
     (root, ext) = os.path.splitext(file_name)
     return root + ext.lower()
 
-def getConfig(context, ssm_names=SSM_NAMES):
+def get_config(context, ssm_names=SSM_NAMES):
     ret = {}
     for key, value in ssm_names.items():
         try:
@@ -177,7 +180,7 @@ def getConfig(context, ssm_names=SSM_NAMES):
 )
 def handler(event, context):
     print("event: {}".format(event))
-    config = getConfig(context)
+    config = get_config(context)
     for record in event["Records"]:
         md = {
           "Bucket": record["s3"]["bucket"]["name"],
