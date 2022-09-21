@@ -3,6 +3,7 @@
 import os
 import uuid
 import ntpath
+import mimetypes
 from urllib.parse import unquote_plus
 import hashlib
 from PIL import Image, ImageFile
@@ -12,6 +13,7 @@ from gql import Client, gql
 from gql.transport.requests import RequestsHTTPTransport
 import exiftool
 from lambda_cache import ssm
+
 
 EXIFTOOL_PATH = "{}/exiftool".format(os.environ["LAMBDA_TASK_ROOT"])
 SUPPORTED_FILE_TYPES = [".jpg", ".png"]
@@ -47,7 +49,6 @@ def resize(md, filename, dims):
     return tmp_path
 
 def copy_to_dlb(errors, md, config):
-    print("copying to dlb")
     dl_bkt = config["DEADLETTER_BUCKET"]
     copy_source = { "Bucket": md["Bucket"], "Key": md["Key"] }
     dest_dir = "UNKNOWN_ERROR"
@@ -56,21 +57,29 @@ def copy_to_dlb(errors, md, config):
             dest_dir = error["extensions"]["code"]
     dlb_key = os.path.join(dest_dir, md["FileName"])
     print("Transferring {} to {}".format(dlb_key, dl_bkt))
-    s3.copy(copy_source, dl_bkt, dlb_key)
+    s3.copy_object(
+        CopySource=copy_source,
+        ContentType=md["MIMEType"],
+        Bucket=dl_bkt,
+        Key=dlb_key,
+    )
 
 def copy_to_archive(md):
-    print("copying to archive")
     archive_bkt = md["ArchiveBucket"]
     copy_source = { "Bucket": md["Bucket"], "Key": md["Key"] }
     file_base, file_ext = os.path.splitext(md["FileName"])
     archive_filename = file_base + "_" + md["Hash"] + file_ext
     archive_key = os.path.join(md["SerialNumber"], archive_filename)
     print("Transferring {} to {}".format(archive_key, archive_bkt))
-    s3.copy(copy_source, archive_bkt, archive_key)
+    s3.copy_object(
+        CopySource=copy_source,
+        ContentType=md["MIMEType"],
+        Bucket=archive_bkt,
+        Key=archive_key,
+    )
     return md
 
 def copy_to_prod(md, sizes=IMG_SIZES):
-    print("copying to prod")
     prod_bkt = md["ProdBucket"]
     for size, dims in sizes.items():
         # create filename and key
@@ -80,11 +89,23 @@ def copy_to_prod(md, sizes=IMG_SIZES):
         if dims is not None:
             # resize locally then upload to s3
             tmp_path = resize(md, filename, dims)
-            s3.upload_file(tmp_path, prod_bkt, prod_key)
+            # NOTE: S3 is not deferring to my attempts to manually set
+            # Content Type for RidgeTec images. It only works for Buckeye images
+            s3.upload_file(
+                tmp_path, 
+                prod_bkt, 
+                prod_key,
+                ExtraArgs={"ContentType": md["MIMEType"]}
+            )
         else:
             # copy original image directly over from staging bucket 
             copy_source = { "Bucket": md["Bucket"], "Key": md["Key"] }
-            s3.copy(copy_source, prod_bkt, prod_key)
+            s3.copy_object(
+                CopySource=copy_source,
+                ContentType=md["MIMEType"],
+                Bucket=prod_bkt,
+                Key=prod_key,
+            )
 
 def save_image(md, config, query=QUERY):
     print("Posting metadata to API: {}".format(md))
@@ -112,11 +133,12 @@ def hash(img_path):
     img_hash = hashlib.md5(image.tobytes()).hexdigest()
     return img_hash
 
-def enrich_meta_data(md, exif_data, config):
+def enrich_meta_data(md, exif_data, mimetype, config):
     exif_data.update(md)
     md = exif_data
     file_ext = os.path.splitext(md["FileName"])[1].lower().replace(".", "")
     md["FileTypeExtension"] = md["FileTypeExtension"].lower() or file_ext
+    md["MIMEType"] = md["MIMEType"] or mimetype or "image/jpeg"
     md["SerialNumber"] = str(md.get("SerialNumber")) or "unknown"
     md["ArchiveBucket"] = config["ARCHIVE_BUCKET"]
     md["ProdBucket"] = config["SERVING_BUCKET"]
@@ -129,7 +151,6 @@ def get_exif_data(img_path):
         ret = {}
         for d in et.get_metadata(img_path):
             for k, v in d.items():
-                print(f"exif key: {k}, value: {v} (type: {type(v)})")
                 new_key = k if (":" not in k) else k.split(":")[1]
                 ret[new_key] = v
         return ret
@@ -144,9 +165,9 @@ def download(bucket, key):
 
 def process_image(md, config):
     tmp_path = download(md["Bucket"], md["Key"])
+    mimetype, _ = mimetypes.guess_type(tmp_path)
     exif_data = get_exif_data(tmp_path)
-    print(f"exif_data: {exif_data}")
-    md = enrich_meta_data(md, exif_data, config)
+    md = enrich_meta_data(md, exif_data, mimetype, config)
     save_image(md, config)
 
 def validate(file_name):
