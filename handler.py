@@ -5,6 +5,7 @@ import uuid
 import ntpath
 import mimetypes
 from urllib.parse import unquote_plus
+from datetime import datetime
 import hashlib
 from PIL import Image, ImageFile
 ImageFile.LOAD_TRUNCATED_IMAGES = True
@@ -17,6 +18,7 @@ from lambda_cache import ssm
 
 EXIFTOOL_PATH = "{}/exiftool".format(os.environ["LAMBDA_TASK_ROOT"])
 SUPPORTED_FILE_TYPES = [".jpg", ".png"]
+EXIF_DATE_TIME_FORMAT = "%Y:%m:%d %H:%M:%S"
 IMG_SIZES = {
     "original": None,
     "medium": (940, 940),
@@ -133,11 +135,16 @@ def hash(img_path):
     img_hash = hashlib.md5(image.tobytes()).hexdigest()
     return img_hash
 
+def convert_datetime_to_ISO(date_time_exif, format=EXIF_DATE_TIME_FORMAT):
+    iso_date_time = datetime.strptime(date_time_exif, format).isoformat()
+    return iso_date_time
+    
 def enrich_meta_data(md, exif_data, mimetype, config):
     exif_data.update(md)
     md = exif_data
     file_ext = os.path.splitext(md["FileName"])[1].lower().replace(".", "")
     md["FileTypeExtension"] = md["FileTypeExtension"].lower() or file_ext
+    md["DateTimeOriginal"] = convert_datetime_to_ISO(md["DateTimeOriginal"])
     md["MIMEType"] = md["MIMEType"] or mimetype or "image/jpeg"
     md["SerialNumber"] = str(md.get("SerialNumber")) or "unknown"
     md["ArchiveBucket"] = config["ARCHIVE_BUCKET"]
