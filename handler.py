@@ -2,7 +2,9 @@
 
 import os
 import uuid
+import shutil
 import ntpath
+import tempfile
 import mimetypes
 from urllib.parse import unquote_plus
 from datetime import datetime
@@ -43,8 +45,8 @@ QUERY = gql("""
 
 s3 = boto3.client("s3")
 
-def resize(md, filename, dims):
-    tmp_path = os.path.join("/tmp", filename)
+def resize(tmp_dir, md, filename, dims):
+    tmp_path = os.path.join(tmp_dir, filename)
     with Image.open(md["SourceFile"]) as image:
         image.thumbnail(dims)
         image.save(tmp_path)
@@ -81,7 +83,7 @@ def copy_to_archive(md):
     )
     return md
 
-def copy_to_prod(md, sizes=IMG_SIZES):
+def copy_to_prod(tmp_dir, md, sizes=IMG_SIZES):
     prod_bkt = md["ProdBucket"]
     for size, dims in sizes.items():
         # create filename and key
@@ -90,17 +92,17 @@ def copy_to_prod(md, sizes=IMG_SIZES):
         print("Transferring {} to {}".format(prod_key, prod_bkt))
         if dims is not None:
             # resize locally then upload to s3
-            tmp_path = resize(md, filename, dims)
+            tmp_path = resize(tmp_dir, md, filename, dims)
             # NOTE: S3 is not deferring to my attempts to manually set
             # Content Type for RidgeTec images. It only works for Buckeye images
             s3.upload_file(
-                tmp_path, 
-                prod_bkt, 
+                tmp_path,
+                prod_bkt,
                 prod_key,
                 ExtraArgs={"ContentType": md["MIMEType"]}
             )
         else:
-            # copy original image directly over from staging bucket 
+            # copy original image directly over from staging bucket
             copy_source = { "Bucket": md["Bucket"], "Key": md["Key"] }
             s3.copy_object(
                 CopySource=copy_source,
@@ -109,7 +111,7 @@ def copy_to_prod(md, sizes=IMG_SIZES):
                 Key=prod_key,
             )
 
-def save_image(md, config, query=QUERY):
+def save_image(tmp_dir, md, config, query=QUERY):
     print("Posting metadata to API: {}".format(md))
     url = config["ANIML_API_URL"]
     image_input = {"input": { "md": md }}
@@ -123,7 +125,7 @@ def save_image(md, config, query=QUERY):
     try:
         r = client.execute(query, variable_values=image_input)
         print("Response: {}".format(r))
-        copy_to_prod(md)
+        copy_to_prod(tmp_dir, md)
         copy_to_archive(md)
     except Exception as e:
         print("Error saving image: {}".format(e))
@@ -138,7 +140,7 @@ def hash(img_path):
 def convert_datetime_to_ISO(date_time_exif, format=EXIF_DATE_TIME_FORMAT):
     iso_date_time = datetime.strptime(date_time_exif, format).isoformat()
     return iso_date_time
-    
+
 def enrich_meta_data(md, exif_data, mimetype, config):
     exif_data.update(md)
     md = exif_data
@@ -162,20 +164,20 @@ def get_exif_data(img_path):
                 ret[new_key] = v
         return ret
 
-def download(bucket, key):
+def download(tmp_dir, bucket, key):
     print("Downloading {}".format(key))
     tmpkey = key.replace("/", "")
     tmpkey = tmpkey.replace(" ", "_")
-    tmp_path = "/tmp/{}{}".format(uuid.uuid4(), tmpkey)
+    tmp_path = "{}/{}{}".format(tmp_dir, uuid.uuid4(), tmpkey)
     s3.download_file(bucket, key, tmp_path)
     return tmp_path
 
-def process_image(md, config):
-    tmp_path = download(md["Bucket"], md["Key"])
+def process_image(tmp_dir, md, config):
+    tmp_path = download(tmp_dir, md["Bucket"], md["Key"])
     mimetype, _ = mimetypes.guess_type(tmp_path)
     exif_data = get_exif_data(tmp_path)
     md = enrich_meta_data(md, exif_data, mimetype, config)
-    save_image(md, config)
+    save_image(tmp_dir, md, config)
 
 def validate(file_name):
     ext = os.path.splitext(file_name)
@@ -209,16 +211,18 @@ def get_config(context, ssm_names=SSM_NAMES):
 def handler(event, context):
     print("event: {}".format(event))
     config = get_config(context)
-    for record in event["Records"]:
-        md = {
-          "Bucket": record["s3"]["bucket"]["name"],
-          "Key": unquote_plus(record["s3"]["object"]["key"]),
-        }
-        print("New file detected in {}: {}".format(md["Bucket"], md["Key"]))
-        md["FileName"] = normalize(ntpath.basename(md["Key"]))
-        if validate(md["FileName"]):
-          process_image(md, config)
-        else:
-            print("{} is not a supported file type".format(md["FileName"]))
-        print("Deleting {} from {}".format(md["Key"], md["Bucket"]))
-        s3.delete_object(Bucket=md["Bucket"], Key=md["Key"])
+
+    with tempfile.TemporaryDirectory() as tmp_dir:
+        for record in event["Records"]:
+            md = {
+              "Bucket": record["s3"]["bucket"]["name"],
+              "Key": unquote_plus(record["s3"]["object"]["key"]),
+            }
+            print("New file detected in {}: {}".format(md["Bucket"], md["Key"]))
+            md["FileName"] = normalize(ntpath.basename(md["Key"]))
+            if validate(md["FileName"]):
+              process_image(tmp_dir, md, config)
+            else:
+                print("{} is not a supported file type".format(md["FileName"]))
+            print("Deleting {} from {}".format(md["Key"], md["Bucket"]))
+            s3.delete_object(Bucket=md["Bucket"], Key=md["Key"])
