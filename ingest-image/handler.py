@@ -2,6 +2,7 @@
 
 import os
 import uuid
+import json
 import shutil
 import ntpath
 import tempfile
@@ -12,6 +13,7 @@ import hashlib
 from PIL import Image, ImageFile
 ImageFile.LOAD_TRUNCATED_IMAGES = True
 import boto3
+from enum import Enum
 from gql import Client, gql
 from gql.transport.requests import RequestsHTTPTransport
 import exiftool
@@ -19,7 +21,10 @@ from lambda_cache import ssm
 
 
 EXIFTOOL_PATH = "{}/exiftool".format(os.environ["LAMBDA_TASK_ROOT"])
+BATCH_FILE_TYPES = [".zip"]
 SUPPORTED_FILE_TYPES = [".jpg", ".png"]
+IngestType = Enum('IngestType', ['NONE', 'IMAGE', 'BATCH'])
+
 EXIF_DATE_TIME_FORMAT = "%Y:%m:%d %H:%M:%S"
 IMG_SIZES = {
     "original": None,
@@ -28,6 +33,7 @@ IMG_SIZES = {
 }
 SSM_NAMES = {
     "ANIML_API_URL": "/api/url-{}".format(os.environ["STAGE"]),
+    "BATCH_QUEUE": "animl-batch-ingestion-{}".format(os.environ["STAGE"]),
     "ARCHIVE_BUCKET": "/images/archive-bucket-{}".format(os.environ["STAGE"]),
     "SERVING_BUCKET": "/images/serving-bucket-{}".format(os.environ["STAGE"]),
     "DEADLETTER_BUCKET": "/images/dead-letter-bucket-{}".format(os.environ["STAGE"]),
@@ -44,6 +50,7 @@ QUERY = gql("""
 )
 
 s3 = boto3.client("s3")
+sqs = boto3.client("sqs")
 
 def resize(tmp_dir, md, filename, dims):
     tmp_path = os.path.join(tmp_dir, filename)
@@ -179,11 +186,24 @@ def process_image(tmp_dir, md, config):
     md = enrich_meta_data(md, exif_data, mimetype, config)
     save_image(tmp_dir, md, config)
 
+def process_batch(md, config):
+    queue = sqs.get_queue_url(
+        QueueName=config["BATCH_QUEUE"]
+    )
+
+    sqs.send_message(
+        QueueUrl=queue['QueueUrl'],
+        MessageBody=json.dumps(md)
+    )
+
 def validate(file_name):
     ext = os.path.splitext(file_name)
-    if ext[1].lower() not in SUPPORTED_FILE_TYPES:
-        return False
-    return True
+    if ext[1].lower() in SUPPORTED_FILE_TYPES:
+        return IngestType.IMAGE
+    elif ext[1].lower() in BATCH_FILE_TYPES:
+        return IngestType.BATCH
+    else
+        return IngestType.NONE
 
 def normalize(file_name):
     (root, ext) = os.path.splitext(file_name)
@@ -220,8 +240,12 @@ def handler(event, context):
             }
             print("New file detected in {}: {}".format(md["Bucket"], md["Key"]))
             md["FileName"] = normalize(ntpath.basename(md["Key"]))
-            if validate(md["FileName"]):
+
+            ingest_type = validate(md["FileName"]):
+            if ingest_type == IngestType.IMAGE:
               process_image(tmp_dir, md, config)
+            elif ingest_type == IngestType.BATCH:
+              process_batch(md, config)
             else:
                 print("{} is not a supported file type".format(md["FileName"]))
             print("Deleting {} from {}".format(md["Key"], md["Bucket"]))
