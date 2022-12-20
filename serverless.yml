@@ -8,29 +8,38 @@ provider:
   stage: ${opt:stage, 'dev'}
   region: us-west-2
   profile: animl
-  iamRoleStatements:
-    - Effect: 'Allow'
-      Action:
-        - 's3:DeleteObject'
-      Resource:
-        - Fn::Join:
-          - ''
-          - - 'arn:aws:s3:::'
-            - Ref: S3BucketAnimlimagesingestion
-        - Fn::Join:
-          - ''
-          - - 'arn:aws:s3:::'
-            - Ref: S3BucketAnimlimagesingestion
-            - '/*'
-    - Effect: Allow
-      Action:
-        - ssm:GetParameter
-        - ssm:GetParameters
-      Resource:
-        - !Sub arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter/*
 
-  iamManagedPolicies:
-    - 'arn:aws:iam::aws:policy/AWSLambdaExecute'
+  iam:
+    role:
+      managedPolicies:
+        - 'arn:aws:iam::aws:policy/AWSLambdaExecute'
+      statements:
+        - Effect: 'Allow'
+          Action:
+            - 's3:DeleteObject'
+          Resource:
+            - Fn::Join:
+              - ''
+              - - 'arn:aws:s3:::'
+                - Ref: S3BucketAnimlimagesingestion
+            - Fn::Join:
+              - ''
+              - - 'arn:aws:s3:::'
+                - Ref: S3BucketAnimlimagesingestion
+                - '/*'
+        - Effect: Allow
+          Action:
+            - sqs:Get*
+            - sqs:SendMessage
+          Resource:
+            - !Sub arn:aws:sqs:${AWS::Region}:${AWS::AccountId}:animl-batch-ingestion-${opt:stage, self:provider.stage, 'dev'}
+        - Effect: Allow
+          Action:
+            - ssm:GetParameter
+            - ssm:GetParameters
+          Resource:
+            - !Sub arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter/*
+
   environment:
     STAGE: ${opt:stage, self:provider.stage, 'dev'}
     APIKEY: '{{resolve:secretsmanager:api-key-${self:provider.stage}:SecretString:apikey}}'
