@@ -26,7 +26,7 @@ provider:
       Action:
         - ssm:GetParameter
         - ssm:GetParameters
-      Resource: 
+      Resource:
         - !Sub arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter/*
 
   iamManagedPolicies:
@@ -52,11 +52,16 @@ functions:
 
 resources:
   Resources:
-    # TODO: break up resources into separate files: 
+    # TODO: break up resources into separate files:
     # https://medium.com/swlh/create-deploy-a-serverless-react-app-to-s3-cloudfront-on-aws-4f83fa605ff0
 
     # AWS Resources naming conventions in Serverless (for reference):
     # https://www.serverless.com/framework/docs/providers/aws/guide/resources/
+
+    BatchIngestQueue:
+      Type: AWS::SQS::Queue
+      Properties:
+        QueueName: animl-batch-ingestion-${opt:stage, self:provider.stage, 'dev'}
 
     # Ingestion bucket
     S3BucketAnimlimagesingestion:
@@ -90,7 +95,7 @@ resources:
           BlockPublicPolicy: true
           IgnorePublicAcls: true
           RestrictPublicBuckets: true
-    
+
     # Dead letter bucket
     S3BucketAnimlimagesdeadletter:
       Type: AWS::S3::Bucket
@@ -105,13 +110,13 @@ resources:
     # Bucket policy for animl-images-ingestion
     S3BucketPolicyAnimlImagesIngestionBucketPolicy:
       Type: AWS::S3::BucketPolicy
-      Properties: 
-        Bucket: 
+      Properties:
+        Bucket:
           Ref: S3BucketAnimlimagesingestion
-        PolicyDocument: 
-          Statement: 
+        PolicyDocument:
+          Statement:
             -
-              Action: 
+              Action:
                 - "s3:*"
               Effect: "Allow"
               Resource:
@@ -146,7 +151,7 @@ resources:
           Comment: "orign access identity for animl images serving ${opt:stage, self:provider.stage, 'dev'} bucket"
 
     # Cloudfront distrobution for serving bucket
-    # API docs - https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-resource-cloudfront-distribution.html    
+    # API docs - https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-resource-cloudfront-distribution.html
     CloudfrontDistributionAnimlimagesserving:
       DependsOn:
         - S3BucketAnimlimagesserving
@@ -178,7 +183,7 @@ resources:
             - HEAD
             - OPTIONS
             TargetOriginId: !Ref S3BucketAnimlimagesserving
-            MinTTL: 86400  # 1 day - perhaps adjust for staging? 
+            MinTTL: 86400  # 1 day - perhaps adjust for staging?
             MaxTTL: 31536000  # 1 year
             ForwardedValues:
               QueryString: 'false'
@@ -195,13 +200,13 @@ resources:
     # Bucket policy for serving bucket to allow cloudfront to access it
     S3BucketPolicyAnimlImagesServingBucketPolicy:
       Type: AWS::S3::BucketPolicy
-      Properties: 
-        Bucket: 
+      Properties:
+        Bucket:
           Ref: S3BucketAnimlimagesserving
-        PolicyDocument: 
-          Statement: 
+        PolicyDocument:
+          Statement:
             -
-              Action: 
+              Action:
                 - 's3:GetObject'
               Effect: "Allow"
               Resource:
@@ -250,7 +255,7 @@ resources:
         Type: String
         Value: animl-images-dead-letter-${opt:stage, self:provider.stage, 'dev'}
 
-    # SSM Param - serving bucket cloudfront url 
+    # SSM Param - serving bucket cloudfront url
     SSMParameterAnimlimagesservingdistrobution:
       Type: AWS::SSM::Parameter
       Properties:
@@ -265,7 +270,7 @@ resources:
 custom:
   pythonRequirements:
     dockerizePip: non-linux
-    dockerFile: Dockerfile
+    dockerFile: ./ingest-image/Dockerfile
     useDownloadCache: false
     useStaticCache: false
     dockerExtraFiles:
