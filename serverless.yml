@@ -67,7 +67,7 @@ resources:
     # AWS Resources naming conventions in Serverless (for reference):
     # https://www.serverless.com/framework/docs/providers/aws/guide/resources/
 
-    BatchIngestQueue:
+    BatchZipIngestQueue:
       Type: AWS::Batch::JobQueue
       Properties:
         ComputeEnvironmentOrder:
@@ -163,12 +163,12 @@ resources:
           FargatePlatformConfiguration:
             PlatformVersion: 'LATEST'
           Environment:
-            - Name: 'StackName',
+            - Name: 'StackName'
               Value: !Ref "AWS::StackName"
           ResourceRequirements:
-            - Type: 'VCPU',
+            - Type: 'VCPU'
               Value: 8
-            - Type: 'MEMORY',
+            - Type: 'MEMORY'
               Value: 4096 * 8
           ExecutionRoleArn:
             Fn::GetAtt:
@@ -191,7 +191,8 @@ resources:
               Action: sts:AssumeRole
               Principal:
                 Service: ecs-tasks.amazonaws.com
-        ManagedPolicyArns: ['arn:aws:iam::aws:policy/service-role/AmazonECSTaskExecutionRolePolicy'],
+        ManagedPolicyArns:
+          - arn:aws:iam::aws:policy/service-role/AmazonECSTaskExecutionRolePolicy
         Path: /
 
     BatchSecurityGroup:
@@ -377,7 +378,7 @@ resources:
         Name: /images/batch-queue-${opt:stage, self:provider.stage, 'dev'}
         Type: String
         Value:
-          Ref: BatchIngestQueue
+          Ref: BatchZipIngestQueue
 
     # SSM Param - serving bucket
     SSMParameterAnimlimagesservingbucket:
