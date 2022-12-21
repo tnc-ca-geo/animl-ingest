@@ -189,7 +189,7 @@ def process_image(tmp_dir, md, config):
 
 def process_batch(md, config):
     batch.submit_job(
-        jobName='{}'.format(md['Key']),
+        jobName='process-batch',
         jobQueue=config["BATCH_QUEUE"],
         jobDefinition=config["BATCH_JOB"],
         containerOverrides={

@@ -173,6 +173,8 @@ resources:
         ContainerProperties:
           FargatePlatformConfiguration:
             PlatformVersion: 'LATEST'
+          NetworkConfiguration:
+            AssignPublicIp: 'ENABLED'
           Environment:
             - Name: 'StackName'
               Value: !Ref "AWS::StackName"
