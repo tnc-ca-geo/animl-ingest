@@ -202,7 +202,7 @@ def validate(file_name):
         return IngestType.IMAGE
     elif ext[1].lower() in BATCH_FILE_TYPES:
         return IngestType.BATCH
-    else
+    else:
         return IngestType.NONE
 
 def normalize(file_name):
@@ -241,7 +241,7 @@ def handler(event, context):
             print("New file detected in {}: {}".format(md["Bucket"], md["Key"]))
             md["FileName"] = normalize(ntpath.basename(md["Key"]))
 
-            ingest_type = validate(md["FileName"]):
+            ingest_type = validate(md["FileName"])
             if ingest_type == IngestType.IMAGE:
               process_image(tmp_dir, md, config)
             elif ingest_type == IngestType.BATCH:

@@ -48,7 +48,7 @@ provider:
 functions:
   IngestImage:
     name: IngestImageLambdaFunction-${opt:stage, self:provider.stage, 'dev'}
-    handler: handler.handler
+    handler: ingest-image/handler.handler
     maximumRetryAttempts: 0
     timeout: 15
     events:

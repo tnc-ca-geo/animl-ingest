@@ -1,6 +1,6 @@
 FROM public.ecr.aws/sam/build-python3.7:latest
 
-# Download exiftool and copy its executable and dependencies into 
+# Download exiftool and copy its executable and dependencies into
 # /output/exiftool/
 
 RUN mkdir /output && \
