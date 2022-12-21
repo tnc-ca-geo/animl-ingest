@@ -83,22 +83,22 @@ resources:
       Type: AWS::IAM::Role
       Properties:
         AssumeRolePolicyDocument:
-          Version: 2012-10-17
+          Version: '2012-10-17'
           Statement:
             - Effect: Allow
               Principal:
                 Service: batch.amazonaws.com
               Action: sts:AssumeRole
-          Path: /service-role/
-          ManagedPolicyArns:
-            - arn:aws:iam::aws:policy/service-role/AWSBatchServiceRole
+        Path: '/service-role/'
+        ManagedPolicyArns:
+          - arn:aws:iam::aws:policy/service-role/AWSBatchServiceRole
 
     BatchJobRole:
       Type: AWS::IAM::Role
       Properties:
-        Path: /
+        Path: '/'
         AssumeRolePolicyDocument:
-          Version: 2012-10-17
+          Version: '2012-10-17'
           Statement:
             - Effect: Allow
               Action: sts:AssumeRole
@@ -185,7 +185,7 @@ resources:
       Type: AWS::IAM::Role
       Properties:
         AssumeRolePolicyDocument:
-          Version: 2012-10-17
+          Version: '2012-10-17'
           Statement:
             - Effect: Allow
               Action: sts:AssumeRole
@@ -193,7 +193,7 @@ resources:
                 Service: ecs-tasks.amazonaws.com
         ManagedPolicyArns:
           - arn:aws:iam::aws:policy/service-role/AmazonECSTaskExecutionRolePolicy
-        Path: /
+        Path: '/'
 
     BatchSecurityGroup:
       Type: AWS::EC2::SecurityGroup
