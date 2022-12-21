@@ -34,6 +34,7 @@ IMG_SIZES = {
 SSM_NAMES = {
     "ANIML_API_URL": "/api/url-{}".format(os.environ["STAGE"]),
     "BATCH_QUEUE": "/images/batch-queue-{}".format(os.environ["STAGE"]),
+    "BATCH_JOB": "/images/batch-job-{}".format(os.environ["STAGE"]),
     "ARCHIVE_BUCKET": "/images/archive-bucket-{}".format(os.environ["STAGE"]),
     "SERVING_BUCKET": "/images/serving-bucket-{}".format(os.environ["STAGE"]),
     "DEADLETTER_BUCKET": "/images/dead-letter-bucket-{}".format(os.environ["STAGE"]),
@@ -50,7 +51,7 @@ QUERY = gql("""
 )
 
 s3 = boto3.client("s3")
-sqs = boto3.client("sqs")
+batch = boto3.client("batch")
 
 def resize(tmp_dir, md, filename, dims):
     tmp_path = os.path.join(tmp_dir, filename)
@@ -187,9 +188,16 @@ def process_image(tmp_dir, md, config):
     save_image(tmp_dir, md, config)
 
 def process_batch(md, config):
-    sqs.send_message(
-        QueueUrl=config["BATCH_QUEUE"],
-        MessageBody=json.dumps(md)
+    batch.submit_job(
+        jobName='{}'.format(md['Key']),
+        jobQueue=config["BATCH_QUEUE"],
+        jobDefinition=config["BATCH_JOB"],
+        containerOverrides={
+            "environment": [{
+                'name': 'TASK',
+                'value': json.dumps(md)
+            }]
+        }
     )
 
 def validate(file_name):

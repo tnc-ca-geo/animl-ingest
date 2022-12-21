@@ -9,6 +9,10 @@ provider:
   region: us-west-2
   profile: animl
 
+  ecr:
+    images:
+      batch:
+        path: ./ingest-zip/
   iam:
     role:
       managedPolicies:
@@ -29,10 +33,10 @@ provider:
                 - '/*'
         - Effect: Allow
           Action:
-            - sqs:Get*
-            - sqs:SendMessage
-          Resource:
-            - !Sub arn:aws:sqs:${AWS::Region}:${AWS::AccountId}:animl-batch-ingestion-${opt:stage, self:provider.stage, 'dev'}
+            - 'batch:SubmitJob'
+            - 'batch:Describe*'
+            - 'batch:ListJobs'
+          Resource: '*'
         - Effect: Allow
           Action:
             - ssm:GetParameter
@@ -46,6 +50,9 @@ provider:
 
 
 functions:
+  IngestBatch:
+    image:
+      name: batch
   IngestImage:
     name: IngestImageLambdaFunction-${opt:stage, self:provider.stage, 'dev'}
     handler: ingest-image/handler.handler
@@ -76,7 +83,6 @@ resources:
               Ref: BatchComputeEnvironment
         State: ENABLED
         Priority: 1
-        BucketName: animl-images-ingestion-${opt:stage, self:provider.stage, 'dev'}
         JobQueueName: animl-batch-ingestion-${opt:stage, self:provider.stage, 'dev'}
 
     BatchServiceRole:
@@ -142,7 +148,12 @@ resources:
         State: ENABLED
         ComputeResources:
           Type: FARGATE
-          MaxvCpus: 128,
+          MaxvCpus: 128
+          Subnets:
+            - 'subnet-c958fd83'
+            - 'subnet-c045cf9d'
+            - 'subnet-1af0f231'
+            - 'subnet-6fbc0717'
           SecurityGroupIds:
             - !Ref BatchSecurityGroup
 
@@ -167,9 +178,9 @@ resources:
               Value: !Ref "AWS::StackName"
           ResourceRequirements:
             - Type: 'VCPU'
-              Value: 8
+              Value: 1
             - Type: 'MEMORY'
-              Value: 4096 * 8
+              Value: 2048
           ExecutionRoleArn:
             Fn::GetAtt:
               - BatchExecRole
@@ -178,8 +189,8 @@ resources:
             Fn::GetAtt:
               - BatchJobRole
               - Arn
-          ReadonlyRootFilesystem: false,
-          Image: cf.join([cf.accountId, '.dkr.ecr.', cf.region, '.amazonaws.com/kelpwatch:geoprocessing-', cf.ref('GitSha')])
+          ReadonlyRootFilesystem: false
+          Image: !Sub "${AWS::AccountId}.dkr.ecr.${AWS::Region}.amazonaws.com/serverless-animl-ingest-dev:batch"
 
     BatchExecRole:
       Type: AWS::IAM::Role
@@ -198,6 +209,7 @@ resources:
     BatchSecurityGroup:
       Type: AWS::EC2::SecurityGroup
       Properties:
+        VpcId: 'vpc-ad3816d5'
         GroupDescription:
           Fn::Join:
             - " "
@@ -370,7 +382,7 @@ resources:
         Type: String
         Value: animl-images-ingestion-${opt:stage, self:provider.stage, 'dev'}
 
-    # SSM Param for queue bucket
+    # SSM Param for batch queue
     SSMParameterAnimlBatchQueue:
       Type: AWS::SSM::Parameter
       Properties:
@@ -379,6 +391,16 @@ resources:
         Type: String
         Value:
           Ref: BatchZipIngestQueue
+
+    # SSM Param for batch Job Def
+    SSMParameterAnimlBatchJob:
+      Type: AWS::SSM::Parameter
+      Properties:
+        Description: Animl images batch job
+        Name: /images/batch-job-${opt:stage, self:provider.stage, 'dev'}
+        Type: String
+        Value:
+          Ref: BatchJobDefinition
 
     # SSM Param - serving bucket
     SSMParameterAnimlimagesservingbucket:
