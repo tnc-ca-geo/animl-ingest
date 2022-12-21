@@ -79,7 +79,7 @@ resources:
         BucketName: animl-images-ingestion-${opt:stage, self:provider.stage, 'dev'}
         JobQueueName: animl-batch-ingestion-${opt:stage, self:provider.stage, 'dev'}
 
-    BatchServiceRole: {
+    BatchServiceRole:
       Type: AWS::IAM::Role
       Properties:
         AssumeRolePolicyDocument:
@@ -105,40 +105,58 @@ resources:
               Principal:
                 Service: ecs-tasks.amazonaws.com
         Policies:
-          - PolicyName: cf.join('-', [cf.stackName, 'etl-policy']),
+          - PolicyName:
+              Fn::Join:
+                - "-"
+                - - !Ref "AWS::StackName"
+                  - "etl-policy"
             PolicyDocument:
               Statement:
-                - Effect: 'Allow',
-                  Resource: '*',
-                  Action: ['batch:DescribeJobs']
-                - Effect: 'Allow',
+                - Effect: Allow
+                  Resource: '*'
+                  Action:
+                    - batch:DescribeJobs
+                - Effect: Allow
                   Resource:
-                    - cf.join(['arn:aws:s3:::', cf.ref('DataBucketProduction')]),
-                    - cf.join(['arn:aws:s3:::', cf.ref('DataBucketProduction'), '/*'])
+                    - "arn:aws:s3:::animl-images-ingestion-${opt:stage, self:provider.stage, 'dev'}/*"
+                    - "arn:aws:s3:::animl-images-ingestion-${opt:stage, self:provider.stage, 'dev'}"
                   Action: '*'
-                - Effect: 'Allow',
-                  Resource: '*',
-                  Action: ['ecs:DescribeContainerInstances']
+                - Effect: Allow
+                  Resource: '*'
+                  Action:
+                    - ecs:DescribeContainerInstances
 
     BatchComputeEnvironment:
       Type: AWS::Batch::ComputeEnvironment
       Properties:
         Type: MANAGED
-        ServiceRole: cf.getAtt('BatchServiceRole', 'Arn'),
-        ComputeEnvironmentName: cf.join('-', ['kelpwatch', cf.stackName]),
+        ServiceRole:
+          Fn::GetAtt:
+            - BatchServiceRole
+            - Arn
+        ComputeEnvironmentName:
+          Fn::Join:
+            - "-"
+            - - !Ref "AWS::StackName"
+              - "batch-ingest"
         State: ENABLED
         ComputeResources:
           Type: FARGATE
           MaxvCpus: 128,
-          SecurityGroupIds: [ cf.ref('BatchSecurityGroup') ],
-          Subnets: [ cf.ref('SubnetB') ],
+          SecurityGroupIds:
+            - !Ref BatchSecurityGroup
 
-    BatchJobDefinition: {
+    BatchJobDefinition:
       Type: AWS::Batch::JobDefinition
       Properties:
         Type: container
-        JobDefinitionName: cf.join('-', [cf.stackName, 'job']),
-        PlatformCapabilities: [ "FARGATE" ]
+        JobDefinitionName:
+          Fn::Join:
+            - "-"
+            - - !Ref "AWS::StackName"
+              - "batch-job"
+        PlatformCapabilities:
+          - FARGATE
         RetryStrategy:
           Attempts: 1
         ContainerProperties:
@@ -146,14 +164,20 @@ resources:
             PlatformVersion: 'LATEST'
           Environment:
             - Name: 'StackName',
-              Value: cf.stackName
+              Value: !Ref "AWS::StackName"
           ResourceRequirements:
             - Type: 'VCPU',
               Value: 8
             - Type: 'MEMORY',
               Value: 4096 * 8
-          ExecutionRoleArn: cf.getAtt('BatchExecRole', 'Arn'),
-          JobRoleArn: cf.getAtt('BatchJobRole', 'Arn'),
+          ExecutionRoleArn:
+            Fn::GetAtt:
+              - BatchExecRole
+              - Arn
+          JobRoleArn:
+            Fn::GetAtt:
+              - BatchJobRole
+              - Arn
           ReadonlyRootFilesystem: false,
           Image: cf.join([cf.accountId, '.dkr.ecr.', cf.region, '.amazonaws.com/kelpwatch:geoprocessing-', cf.ref('GitSha')])
 
@@ -173,8 +197,11 @@ resources:
     BatchSecurityGroup:
       Type: AWS::EC2::SecurityGroup
       Properties:
-        VpcId: cf.ref('VPC'),
-        GroupDescription: cf.join([cf.stackName, ' Batch Security Group'])
+        GroupDescription:
+          Fn::Join:
+            - " "
+            - - !Ref "AWS::StackName"
+              - " Batch Security Group"
         SecurityGroupIngress: []
 
     # Ingestion bucket
