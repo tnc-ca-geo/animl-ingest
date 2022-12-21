@@ -237,6 +237,16 @@ resources:
         Type: String
         Value: animl-images-ingestion-${opt:stage, self:provider.stage, 'dev'}
 
+    # SSM Param for queue bucket
+    SSMParameterAnimlBatchQueue:
+      Type: AWS::SSM::Parameter
+      Properties:
+        Description: Animl images batch queue
+        Name: /images/batch-queue-${opt:stage, self:provider.stage, 'dev'}
+        Type: String
+        Value:
+          Ref: BatchIngestQueue
+
     # SSM Param - serving bucket
     SSMParameterAnimlimagesservingbucket:
       Type: AWS::SSM::Parameter

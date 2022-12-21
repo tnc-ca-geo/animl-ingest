@@ -33,7 +33,7 @@ IMG_SIZES = {
 }
 SSM_NAMES = {
     "ANIML_API_URL": "/api/url-{}".format(os.environ["STAGE"]),
-    "BATCH_QUEUE": "animl-batch-ingestion-{}".format(os.environ["STAGE"]),
+    "BATCH_QUEUE": "/images/batch-queue-{}".format(os.environ["STAGE"]),
     "ARCHIVE_BUCKET": "/images/archive-bucket-{}".format(os.environ["STAGE"]),
     "SERVING_BUCKET": "/images/serving-bucket-{}".format(os.environ["STAGE"]),
     "DEADLETTER_BUCKET": "/images/dead-letter-bucket-{}".format(os.environ["STAGE"]),
@@ -187,12 +187,8 @@ def process_image(tmp_dir, md, config):
     save_image(tmp_dir, md, config)
 
 def process_batch(md, config):
-    queue = sqs.get_queue_url(
-        QueueName=config["BATCH_QUEUE"]
-    )
-
     sqs.send_message(
-        QueueUrl=queue['QueueUrl'],
+        QueueUrl=config["BATCH_QUEUE"],
         MessageBody=json.dumps(md)
     )
 
@@ -243,10 +239,11 @@ def handler(event, context):
 
             ingest_type = validate(md["FileName"])
             if ingest_type == IngestType.IMAGE:
-              process_image(tmp_dir, md, config)
+                process_image(tmp_dir, md, config)
+
+                print("Deleting {} from {}".format(md["Key"], md["Bucket"]))
+                s3.delete_object(Bucket=md["Bucket"], Key=md["Key"])
             elif ingest_type == IngestType.BATCH:
-              process_batch(md, config)
+                process_batch(md, config)
             else:
                 print("{} is not a supported file type".format(md["FileName"]))
-            print("Deleting {} from {}".format(md["Key"], md["Bucket"]))
-            s3.delete_object(Bucket=md["Bucket"], Key=md["Key"])
