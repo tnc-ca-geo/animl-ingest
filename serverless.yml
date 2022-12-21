@@ -68,9 +68,114 @@ resources:
     # https://www.serverless.com/framework/docs/providers/aws/guide/resources/
 
     BatchIngestQueue:
-      Type: AWS::SQS::Queue
+      Type: AWS::Batch::JobQueue
       Properties:
-        QueueName: animl-batch-ingestion-${opt:stage, self:provider.stage, 'dev'}
+        ComputeEnvironmentOrder:
+          - Order: 1
+            ComputeEnvironment:
+              Ref: BatchComputeEnvironment
+        State: ENABLED
+        Priority: 1
+        BucketName: animl-images-ingestion-${opt:stage, self:provider.stage, 'dev'}
+        JobQueueName: animl-batch-ingestion-${opt:stage, self:provider.stage, 'dev'}
+
+    BatchServiceRole: {
+      Type: AWS::IAM::Role
+      Properties:
+        AssumeRolePolicyDocument:
+          Version: 2012-10-17
+          Statement:
+            - Effect: Allow
+              Principal:
+                Service: batch.amazonaws.com
+              Action: sts:AssumeRole
+          Path: /service-role/
+          ManagedPolicyArns:
+            - arn:aws:iam::aws:policy/service-role/AWSBatchServiceRole
+
+    BatchJobRole:
+      Type: AWS::IAM::Role
+      Properties:
+        Path: /
+        AssumeRolePolicyDocument:
+          Version: 2012-10-17
+          Statement:
+            - Effect: Allow
+              Action: sts:AssumeRole
+              Principal:
+                Service: ecs-tasks.amazonaws.com
+        Policies:
+          - PolicyName: cf.join('-', [cf.stackName, 'etl-policy']),
+            PolicyDocument:
+              Statement:
+                - Effect: 'Allow',
+                  Resource: '*',
+                  Action: ['batch:DescribeJobs']
+                - Effect: 'Allow',
+                  Resource:
+                    - cf.join(['arn:aws:s3:::', cf.ref('DataBucketProduction')]),
+                    - cf.join(['arn:aws:s3:::', cf.ref('DataBucketProduction'), '/*'])
+                  Action: '*'
+                - Effect: 'Allow',
+                  Resource: '*',
+                  Action: ['ecs:DescribeContainerInstances']
+
+    BatchComputeEnvironment:
+      Type: AWS::Batch::ComputeEnvironment
+      Properties:
+        Type: MANAGED
+        ServiceRole: cf.getAtt('BatchServiceRole', 'Arn'),
+        ComputeEnvironmentName: cf.join('-', ['kelpwatch', cf.stackName]),
+        State: ENABLED
+        ComputeResources:
+          Type: FARGATE
+          MaxvCpus: 128,
+          SecurityGroupIds: [ cf.ref('BatchSecurityGroup') ],
+          Subnets: [ cf.ref('SubnetB') ],
+
+    BatchJobDefinition: {
+      Type: AWS::Batch::JobDefinition
+      Properties:
+        Type: container
+        JobDefinitionName: cf.join('-', [cf.stackName, 'job']),
+        PlatformCapabilities: [ "FARGATE" ]
+        RetryStrategy:
+          Attempts: 1
+        ContainerProperties:
+          FargatePlatformConfiguration:
+            PlatformVersion: 'LATEST'
+          Environment:
+            - Name: 'StackName',
+              Value: cf.stackName
+          ResourceRequirements:
+            - Type: 'VCPU',
+              Value: 8
+            - Type: 'MEMORY',
+              Value: 4096 * 8
+          ExecutionRoleArn: cf.getAtt('BatchExecRole', 'Arn'),
+          JobRoleArn: cf.getAtt('BatchJobRole', 'Arn'),
+          ReadonlyRootFilesystem: false,
+          Image: cf.join([cf.accountId, '.dkr.ecr.', cf.region, '.amazonaws.com/kelpwatch:geoprocessing-', cf.ref('GitSha')])
+
+    BatchExecRole:
+      Type: AWS::IAM::Role
+      Properties:
+        AssumeRolePolicyDocument:
+          Version: 2012-10-17
+          Statement:
+            - Effect: Allow
+              Action: sts:AssumeRole
+              Principal:
+                Service: ecs-tasks.amazonaws.com
+        ManagedPolicyArns: ['arn:aws:iam::aws:policy/service-role/AmazonECSTaskExecutionRolePolicy'],
+        Path: /
+
+    BatchSecurityGroup:
+      Type: AWS::EC2::SecurityGroup
+      Properties:
+        VpcId: cf.ref('VPC'),
+        GroupDescription: cf.join([cf.stackName, ' Batch Security Group'])
+        SecurityGroupIngress: []
 
     # Ingestion bucket
     S3BucketAnimlimagesingestion:
