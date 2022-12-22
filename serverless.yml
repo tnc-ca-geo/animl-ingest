@@ -9,6 +9,10 @@ provider:
   region: us-west-2
   profile: animl
 
+  ecr:
+    images:
+      batch:
+        path: ./ingest-zip/
   iam:
     role:
       managedPolicies:
@@ -29,10 +33,10 @@ provider:
                 - '/*'
         - Effect: Allow
           Action:
-            - sqs:Get*
-            - sqs:SendMessage
-          Resource:
-            - !Sub arn:aws:sqs:${AWS::Region}:${AWS::AccountId}:animl-batch-ingestion-${opt:stage, self:provider.stage, 'dev'}
+            - 'batch:SubmitJob'
+            - 'batch:Describe*'
+            - 'batch:ListJobs'
+          Resource: '*'
         - Effect: Allow
           Action:
             - ssm:GetParameter
@@ -46,6 +50,9 @@ provider:
 
 
 functions:
+  IngestBatch:
+    image:
+      name: batch
   IngestImage:
     name: IngestImageLambdaFunction-${opt:stage, self:provider.stage, 'dev'}
     handler: ingest-image/handler.handler
@@ -67,10 +74,150 @@ resources:
     # AWS Resources naming conventions in Serverless (for reference):
     # https://www.serverless.com/framework/docs/providers/aws/guide/resources/
 
-    BatchIngestQueue:
-      Type: AWS::SQS::Queue
+    BatchZipIngestQueue:
+      Type: AWS::Batch::JobQueue
       Properties:
-        QueueName: animl-batch-ingestion-${opt:stage, self:provider.stage, 'dev'}
+        ComputeEnvironmentOrder:
+          - Order: 1
+            ComputeEnvironment:
+              Ref: BatchComputeEnvironment
+        State: ENABLED
+        Priority: 1
+        JobQueueName: animl-batch-ingestion-${opt:stage, self:provider.stage, 'dev'}
+
+    BatchServiceRole:
+      Type: AWS::IAM::Role
+      Properties:
+        AssumeRolePolicyDocument:
+          Version: '2012-10-17'
+          Statement:
+            - Effect: Allow
+              Principal:
+                Service: batch.amazonaws.com
+              Action: sts:AssumeRole
+        Path: '/service-role/'
+        ManagedPolicyArns:
+          - arn:aws:iam::aws:policy/service-role/AWSBatchServiceRole
+
+    BatchJobRole:
+      Type: AWS::IAM::Role
+      Properties:
+        Path: '/'
+        AssumeRolePolicyDocument:
+          Version: '2012-10-17'
+          Statement:
+            - Effect: Allow
+              Action: sts:AssumeRole
+              Principal:
+                Service: ecs-tasks.amazonaws.com
+        Policies:
+          - PolicyName:
+              Fn::Join:
+                - "-"
+                - - !Ref "AWS::StackName"
+                  - "etl-policy"
+            PolicyDocument:
+              Statement:
+                - Effect: Allow
+                  Resource: '*'
+                  Action:
+                    - batch:DescribeJobs
+                - Effect: Allow
+                  Resource:
+                    - "arn:aws:s3:::animl-images-ingestion-${opt:stage, self:provider.stage, 'dev'}/*"
+                    - "arn:aws:s3:::animl-images-ingestion-${opt:stage, self:provider.stage, 'dev'}"
+                  Action: '*'
+                - Effect: Allow
+                  Resource: '*'
+                  Action:
+                    - ecs:DescribeContainerInstances
+
+    BatchComputeEnvironment:
+      Type: AWS::Batch::ComputeEnvironment
+      Properties:
+        Type: MANAGED
+        ServiceRole:
+          Fn::GetAtt:
+            - BatchServiceRole
+            - Arn
+        ComputeEnvironmentName:
+          Fn::Join:
+            - "-"
+            - - !Ref "AWS::StackName"
+              - "batch-ingest"
+        State: ENABLED
+        ComputeResources:
+          Type: FARGATE
+          MaxvCpus: 128
+          Subnets:
+            - 'subnet-c958fd83'
+            - 'subnet-c045cf9d'
+            - 'subnet-1af0f231'
+            - 'subnet-6fbc0717'
+          SecurityGroupIds:
+            - !Ref BatchSecurityGroup
+
+    BatchJobDefinition:
+      Type: AWS::Batch::JobDefinition
+      Properties:
+        Type: container
+        JobDefinitionName:
+          Fn::Join:
+            - "-"
+            - - !Ref "AWS::StackName"
+              - "batch-job"
+        PlatformCapabilities:
+          - FARGATE
+        RetryStrategy:
+          Attempts: 1
+        ContainerProperties:
+          FargatePlatformConfiguration:
+            PlatformVersion: 'LATEST'
+          NetworkConfiguration:
+            AssignPublicIp: 'ENABLED'
+          Environment:
+            - Name: 'StackName'
+              Value: !Ref "AWS::StackName"
+          ResourceRequirements:
+            - Type: 'VCPU'
+              Value: 1
+            - Type: 'MEMORY'
+              Value: 2048
+          ExecutionRoleArn:
+            Fn::GetAtt:
+              - BatchExecRole
+              - Arn
+          JobRoleArn:
+            Fn::GetAtt:
+              - BatchJobRole
+              - Arn
+          ReadonlyRootFilesystem: false
+          Image: !Sub "${AWS::AccountId}.dkr.ecr.${AWS::Region}.amazonaws.com/serverless-animl-ingest-dev:batch"
+
+    BatchExecRole:
+      Type: AWS::IAM::Role
+      Properties:
+        AssumeRolePolicyDocument:
+          Version: '2012-10-17'
+          Statement:
+            - Effect: Allow
+              Action: sts:AssumeRole
+              Principal:
+                Service: ecs-tasks.amazonaws.com
+        ManagedPolicyArns:
+          - arn:aws:iam::aws:policy/service-role/AmazonECSTaskExecutionRolePolicy
+        Path: '/'
+
+    BatchSecurityGroup:
+      Type: AWS::EC2::SecurityGroup
+      Properties:
+        VpcId: 'vpc-ad3816d5'
+        GroupDescription:
+          Fn::Join:
+            - " "
+            - - !Ref "AWS::StackName"
+              - " Batch Security Group"
+        SecurityGroupIngress: []
 
     # Ingestion bucket
     S3BucketAnimlimagesingestion:
@@ -237,7 +384,7 @@ resources:
         Type: String
         Value: animl-images-ingestion-${opt:stage, self:provider.stage, 'dev'}
 
-    # SSM Param for queue bucket
+    # SSM Param for batch queue
     SSMParameterAnimlBatchQueue:
       Type: AWS::SSM::Parameter
       Properties:
@@ -245,7 +392,17 @@ resources:
         Name: /images/batch-queue-${opt:stage, self:provider.stage, 'dev'}
         Type: String
         Value:
-          Ref: BatchIngestQueue
+          Ref: BatchZipIngestQueue
+
+    # SSM Param for batch Job Def
+    SSMParameterAnimlBatchJob:
+      Type: AWS::SSM::Parameter
+      Properties:
+        Description: Animl images batch job
+        Name: /images/batch-job-${opt:stage, self:provider.stage, 'dev'}
+        Type: String
+        Value:
+          Ref: BatchJobDefinition
 
     # SSM Param - serving bucket
     SSMParameterAnimlimagesservingbucket:
