@@ -445,7 +445,7 @@ resources:
 
 custom:
   pythonRequirements:
-    dockerizePip: non-linux
+    dockerizePip: true
     dockerFile: ./ingest-image/Dockerfile
     useDownloadCache: false
     useStaticCache: false
