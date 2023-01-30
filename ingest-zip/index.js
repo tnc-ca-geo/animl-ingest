@@ -16,15 +16,15 @@ async function handler() {
             Bucket: task.Bucket,
             Key: task.Key
         }).createReadStream(),
-       fs.createWriteStream(path.resolve(os.tmpdir(), 'input.zip'))
-   );
+        fs.createWriteStream(path.resolve(os.tmpdir(), 'input.zip'))
+    );
 
-   const batch = `batch-${crypto.randomUUID()}`;
+    const batch = `batch-${crypto.randomUUID()}`;
 
     const zip = new Zip(path.resolve(os.tmpdir(), 'input.zip'));
 
     for (const entry of zip.getEntries()) {
-        const {ext} = path.parse(entry.entryName);
+        const { ext } = path.parse(entry.entryName);
         const data = entry.getData();
         // Ensure if there are images with the same name they don't clobber on s3
         const key = crypto.createHash('md5').update(data).digest('hex');

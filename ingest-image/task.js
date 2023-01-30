@@ -1,5 +1,35 @@
-#!/opt/bin/perl
+import AWS from 'aws-sdk';
+import Enum from 'enum';
 
+const BATCH_FILE_TYPES = ['.zip']
+const SUPPORTED_FILE_TYPES = ['.jpg', '.png']
+const IngestType = new Enum(['NONE', 'IMAGE', 'BATCH'], 'IngestType');
+
+const EXIF_DATE_TIME_FORMAT = '%Y:%m:%d %H:%M:%S'
+const IMG_SIZES = {
+    original: null,
+    medium: [940, 940],
+    small: [120, 120]
+}
+const SSM_NAMES = {
+    ANIML_API_URL: "/api/url-{}".format(process.env.STAGE),
+    BATCH_QUEUE: "/images/batch-queue-{}".format(process.env.STAGE),
+    BATCH_JOB: "/images/batch-job-{}".format(process.env.STAGE),
+    ARCHIVE_BUCKET: "/images/archive-bucket-{}".format(process.env.STAGE),
+    SERVING_BUCKET: "/images/serving-bucket-{}".format(process.env.STAGE),
+    DEADLETTER_BUCKET: "/images/dead-letter-bucket-{}".format(process.env.STAGE),
+}
+const QUERY = gql(`
+    mutation CreateImageRecord($input: CreateImageInput!){
+        createImage(input: $input) {
+            image {
+                _id
+            }
+        }
+    }
+`)
+
+/**
 import os
 import uuid
 import json
@@ -20,35 +50,6 @@ import exiftool
 from lambda_cache import ssm
 
 
-EXIFTOOL_PATH = "{}/exiftool".format(os.environ["LAMBDA_TASK_ROOT"])
-BATCH_FILE_TYPES = [".zip"]
-SUPPORTED_FILE_TYPES = [".jpg", ".png"]
-IngestType = Enum('IngestType', ['NONE', 'IMAGE', 'BATCH'])
-
-EXIF_DATE_TIME_FORMAT = "%Y:%m:%d %H:%M:%S"
-IMG_SIZES = {
-    "original": None,
-    "medium": (940, 940),
-    "small": (120, 120)
-}
-SSM_NAMES = {
-    "ANIML_API_URL": "/api/url-{}".format(os.environ["STAGE"]),
-    "BATCH_QUEUE": "/images/batch-queue-{}".format(os.environ["STAGE"]),
-    "BATCH_JOB": "/images/batch-job-{}".format(os.environ["STAGE"]),
-    "ARCHIVE_BUCKET": "/images/archive-bucket-{}".format(os.environ["STAGE"]),
-    "SERVING_BUCKET": "/images/serving-bucket-{}".format(os.environ["STAGE"]),
-    "DEADLETTER_BUCKET": "/images/dead-letter-bucket-{}".format(os.environ["STAGE"]),
-}
-QUERY = gql("""
-    mutation CreateImageRecord($input: CreateImageInput!){
-        createImage(input: $input) {
-            image {
-                _id
-            }
-        }
-    }
-"""
-)
 
 s3 = boto3.client("s3")
 batch = boto3.client("batch")
@@ -255,3 +256,4 @@ def handler(event, context):
                 process_batch(md, config)
             else:
                 print("{} is not a supported file type".format(md["FileName"]))
+*/
