@@ -5,26 +5,18 @@ import { v4 as uuidv4 } from 'uuid';
 import rimraf from 'rimraf';
 
 import path from 'node:path';
-import { createHash } from 'node:crypto'
+import { createHash } from 'node:crypto';
 import { pipeline } from 'node:stream/promises';
 import fs from 'node:fs';
 import fsp from 'node:fs/promises';
-import os from 'node:os';
 
 const region = process.env.AWS_DEFAULT_REGION || 'us-west-2';
 
-const S3 = new AWS.S3({ region });
+const s3 = new AWS.S3({ region });
 const batch = new AWS.Batch({ region });
 const ssm = new AWS.SSM({ region });
 
 const IngestType = new Enum(['NONE', 'IMAGE', 'BATCH'], 'IngestType');
-
-const EXIF_DATE_TIME_FORMAT = '%Y:%m:%d %H:%M:%S';
-const IMG_SIZES = {
-    original: null,
-    medium: [940, 940],
-    small: [120, 120]
-};
 
 /*
 const QUERY = buildSchema(`
@@ -39,11 +31,19 @@ const QUERY = buildSchema(`
 */
 
 export default class Task {
-    constructor(stage='dev') {
+    constructor(stage = 'dev') {
         this.STAGE = stage;
 
         this.BATCH_FILE_TYPES = ['.zip'];
         this.SUPPORTED_FILE_TYPES = ['.jpg', '.png'];
+
+        this.EXIF_DATE_TIME_FORMAT = '%Y:%m:%d %H:%M:%S';
+        this.IMG_SIZES = {
+            original: null,
+            medium: [940, 940],
+            small: [120, 120]
+        };
+
         this.SSM = new Map();
         this.SSM.set(`/api/url-${this.STAGE}`, 'ANIML_API_URL');
         this.SSM.set(`/images/batch-queue-${this.STAGE}`, 'BATCH_QUEUE');
@@ -65,7 +65,7 @@ export default class Task {
                 const md = {
                     Bucket: record.s3.bucket.name,
                     // Key Decode: https://docs.aws.amazon.com/lambda/latest/dg/with-s3-tutorial.html
-                    Key: decodeURIComponent(record.s3.object.key.replace(/\+/g, " ")),
+                    Key: decodeURIComponent(record.s3.object.key.replace(/\+/g, ' '))
                 };
                 console.log(`New file detected in ${md.Bucket}: ${md.Key}`);
                 md.FileName = `${path.parse(md.Key).name}${path.parse(md.Key).ext.toLowerCase()}`;
@@ -73,9 +73,18 @@ export default class Task {
                 const ingest_type = this.validate(md.FileName);
 
                 if (ingest_type === IngestType.IMAGE) {
+                    this.process_image(md);
 
+                    console.log(`Deleting ${md.Key} from ${md.Bucket}`);
+                    await s3.deleteObject({
+                        Bucket: md.Bucket,
+                        Key: md.Key
+                    }).promise();
+
+                    await rimraf(this.tmp_dir);
+                    this.tmp_dir = null;
                 } else if (ingest_type === IngestType.BATCH) {
-
+                    this.process_batch(md);
                 } else {
                     console.log(`${md.FileName} is not a supported file type`);
                 }
@@ -91,7 +100,7 @@ export default class Task {
             Names: Array.from(this.SSM.keys()),
             WithDecryption: true
         }).promise()).Parameters) {
-            this[this.SSM.get(param.Name)] = param.Value
+            this[this.SSM.get(param.Name)] = param.Value;
         }
     }
 
@@ -99,11 +108,11 @@ export default class Task {
         const ext = path.parse(file_name).ext;
 
         if (this.SUPPORTED_FILE_TYPES.includes(ext)) {
-            return IngestType.IMAGE
+            return IngestType.IMAGE;
         } else if (this.BATCH_FILE_TYPES) {
-            return IngestType.BATCH
+            return IngestType.BATCH;
         } else {
-            return IngestType.NONE
+            return IngestType.NONE;
         }
     }
 
@@ -126,11 +135,11 @@ export default class Task {
         return tmp_path;
     }
 
-    async process_batch(md, config) {
+    async process_batch(md) {
         await batch.submitJob({
             jobName: 'process-batch',
-            jobQueue: config.BAtCH_QUEUE,
-            jobDefinition: config.BATCH_JOB,
+            jobQueue: this.BAtCH_QUEUE,
+            jobDefinition: this.BATCH_JOB,
             containerOverrides: {
                 environment: [{
                     name: 'TASK',
@@ -142,8 +151,8 @@ export default class Task {
 }
 
 export async function handler(event) {
-     console.log('EVENT:', event)
-     await Task.control(process.env.STAGE, event);
+    console.log('EVENT:', event);
+    await Task.control(process.env.STAGE, event);
 }
 
 if (import.meta.url === `file://${process.argv[1]}`) handler({ Records: [] });
@@ -289,17 +298,4 @@ def process_image(tmp_dir, md, config):
     md = enrich_meta_data(md, exif_data, mimetype, config)
     save_image(tmp_dir, md, config)
 
-@ssm.cache(
-  parameter=[value for _, value in SSM_NAMES.items()],
-  entry_name="config",
-  max_age_in_seconds=300
-)
-def handler(event, context):
-        if ingest_type == IngestType.IMAGE:
-            process_image(tmp_dir, md, config)
-
-            print("Deleting {} from {}".format(md["Key"], md["Bucket"]))
-            s3.delete_object(Bucket=md["Bucket"], Key=md["Key"])
-        elif ingest_type == IngestType.BATCH:
-            process_batch(md, config)
 */
