@@ -1,5 +1,14 @@
 import AWS from 'aws-sdk';
 import Enum from 'enum';
+import { graphql, buildSchema } from 'graphql';
+import { createHash } from 'crypto'
+import { v4 as uuidv4 } from 'uuid';
+import { pipeline } from 'stream/promises';
+import fs from 'fs';
+import fsp from 'fs/promises';
+
+const S3 = new AWS.S3();
+const batch = new AWS.Batch();
 
 const BATCH_FILE_TYPES = ['.zip'];
 const SUPPORTED_FILE_TYPES = ['.jpg', '.png'];
@@ -11,15 +20,18 @@ const IMG_SIZES = {
     medium: [940, 940],
     small: [120, 120]
 };
+
 const SSM_NAMES = {
-    ANIML_API_URL: '/api/url-{}'.format(process.env.STAGE),
-    BATCH_QUEUE: '/images/batch-queue-{}'.format(process.env.STAGE),
-    BATCH_JOB: '/images/batch-job-{}'.format(process.env.STAGE),
-    ARCHIVE_BUCKET: '/images/archive-bucket-{}'.format(process.env.STAGE),
-    SERVING_BUCKET: '/images/serving-bucket-{}'.format(process.env.STAGE),
-    DEADLETTER_BUCKET: '/images/dead-letter-bucket-{}'.format(process.env.STAGE)
+    ANIML_API_URL: `/api/url-${process.env.STAGE}`,
+    BATCH_QUEUE: `/images/batch-queue-${process.env.STAGE}`,
+    BATCH_JOB: `/images/batch-job-${process.env.STAGE}`,
+    ARCHIVE_BUCKET: `/images/archive-bucket-${process.env.STAGE}`,
+    SERVING_BUCKET: `/images/serving-bucket-${process.env.STAGE}`,
+    DEADLETTER_BUCKET: `/images/dead-letter-bucket-${process.env.STAGE}`
 };
-const QUERY = gql(`
+
+/*
+const QUERY = buildSchema(`
     mutation CreateImageRecord($input: CreateImageInput!){
         createImage(input: $input) {
             image {
@@ -28,10 +40,55 @@ const QUERY = gql(`
         }
     }
 `);
+*/
+
+export default class Task {
+    static async control() {
+        const task = new Task();
+    }
+
+    async hash(img_path) {
+        return createHash('md5').update(await fsp.readFile(img_path)).digest('hex');
+    }
+
+    async download(tmp_dir, Bucket, Key) {
+        console.log(`Downloading ${Key}`);
+        const tmpkey = Key.replace('/', '').replace(' ', '_');
+        const tmp_path = `${tmp_dir}/${uuidv4()}/${tmpkey}`;
+
+        await pipeline(
+            s3.getObject({
+                Bucket, Key
+            }),
+            fs.createWriteStream(tmp_path)
+        );
+
+        return tmp_path;
+    }
+
+    async process_batch(md, config) {
+        await batch.submitJob({
+            jobName: 'process-batch',
+            jobQueue: config.BAtCH_QUEUE,
+            jobDefinition: config.BATCH_JOB,
+            containerOverrides: {
+                environment: [{
+                    name: 'TASK',
+                    value: JSON.stringify(md)
+                }]
+            }
+        }).promise();
+    }
+}
+
+export async function handler() {
+     await Task.control();
+}
+
+if (import.meta.url === `file://${process.argv[1]}`) handler();
 
 /**
 import os
-import uuid
 import json
 import shutil
 import ntpath
@@ -51,8 +108,6 @@ from lambda_cache import ssm
 
 
 
-s3 = boto3.client("s3")
-batch = boto3.client("batch")
 
 def resize(tmp_dir, md, filename, dims):
     tmp_path = os.path.join(tmp_dir, filename)
@@ -141,11 +196,6 @@ def save_image(tmp_dir, md, config, query=QUERY):
         errors = vars(e).get("errors", [])
         copy_to_dlb(errors, md, config)
 
-def hash(img_path):
-    image = Image.open(img_path)
-    img_hash = hashlib.md5(image.tobytes()).hexdigest()
-    return img_hash
-
 def convert_datetime_to_ISO(date_time_exif, format=EXIF_DATE_TIME_FORMAT):
     iso_date_time = datetime.strptime(date_time_exif, format).isoformat()
     return iso_date_time
@@ -173,33 +223,12 @@ def get_exif_data(img_path):
                 ret[new_key] = v
         return ret
 
-def download(tmp_dir, bucket, key):
-    print("Downloading {}".format(key))
-    tmpkey = key.replace("/", "")
-    tmpkey = tmpkey.replace(" ", "_")
-    tmp_path = "{}/{}{}".format(tmp_dir, uuid.uuid4(), tmpkey)
-    s3.download_file(bucket, key, tmp_path)
-    return tmp_path
-
 def process_image(tmp_dir, md, config):
     tmp_path = download(tmp_dir, md["Bucket"], md["Key"])
     mimetype, _ = mimetypes.guess_type(tmp_path)
     exif_data = get_exif_data(tmp_path)
     md = enrich_meta_data(md, exif_data, mimetype, config)
     save_image(tmp_dir, md, config)
-
-def process_batch(md, config):
-    batch.submit_job(
-        jobName='process-batch',
-        jobQueue=config["BATCH_QUEUE"],
-        jobDefinition=config["BATCH_JOB"],
-        containerOverrides={
-            "environment": [{
-                'name': 'TASK',
-                'value': json.dumps(md)
-            }]
-        }
-    )
 
 def validate(file_name):
     ext = os.path.splitext(file_name)
