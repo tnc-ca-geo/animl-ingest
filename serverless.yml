@@ -4,7 +4,6 @@ service: animl-ingest
 
 provider:
   name: aws
-  runtime: python3.7
   stage: ${opt:stage, 'dev'}
   region: us-west-2
   profile: animl
@@ -63,8 +62,6 @@ functions:
           bucket: animl-images-ingestion-${opt:stage, self:provider.stage, 'dev'}
           event: s3:ObjectCreated:*
           existing: true
-    layers:
-      - arn:aws:lambda:${self:provider.region}:445285296882:layer:perl-5-26-runtime:12
 
 resources:
   Resources:
@@ -442,15 +439,3 @@ resources:
           Fn::GetAtt: # grabs cloudfront url
             - CloudfrontDistributionAnimlimagesserving
             - DomainName
-
-custom:
-  pythonRequirements:
-    dockerizePip: true
-    dockerFile: ./ingest-image/Dockerfile
-    useDownloadCache: false
-    useStaticCache: false
-    dockerExtraFiles:
-      - -r /output/exiftool/
-
-plugins:
-  - serverless-python-requirements
