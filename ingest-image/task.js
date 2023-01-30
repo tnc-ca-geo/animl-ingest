@@ -3,6 +3,7 @@ import Enum from 'enum';
 import { graphql, buildSchema } from 'graphql';
 import { v4 as uuidv4 } from 'uuid';
 import rimraf from 'rimraf';
+import mime from 'mime-types';
 
 import path from 'node:path';
 import { createHash } from 'node:crypto';
@@ -46,6 +47,7 @@ export default class Task {
 
         this.SSM = new Map();
         this.SSM.set(`/api/url-${this.STAGE}`, 'ANIML_API_URL');
+        this.SSM.set(`/api/exif-url-${this.STAGE}`, 'EXIF_API_URL');
         this.SSM.set(`/images/batch-queue-${this.STAGE}`, 'BATCH_QUEUE');
         this.SSM.set(`/images/batch-job-${this.STAGE}`, 'BATCH_JOB');
         this.SSM.set(`/images/archive-bucket-${this.STAGE}`, 'ARCHIVE_BUCKET');
@@ -102,6 +104,41 @@ export default class Task {
         }).promise()).Parameters) {
             this[this.SSM.get(param.Name)] = param.Value;
         }
+    }
+
+    async process_image(md) {
+        const tmp_path = await this.download(md.Bucket, md.Key);
+        const exif_data = await this.get_exif_data(tmp_path)
+
+        const mimetype = mime.lookup(tmp_path);
+        md = this.enrich_meta_data(md, exif_data, mimetype);
+        save_image(tmp_dir, md, config)
+    }
+
+    async get_exif_data(tmp_path) {
+        // TODO Call to Exif Stack
+
+        const res = await fetch(this.EXIF_API_URL, {
+            method: 'GET'
+        });
+
+        if (!res.ok) throw new Error(await res.text());
+
+        return await res.json();
+    }
+
+    enrich_meta_data(md, exif_data, mimetype) {
+        Object.assign(md, exif_data);
+
+        file_ext = path.parse(md.FileName).ext;
+        md.FileTypeExtension = md.FileTypeExtension.toLowerCase() || file_ext;
+        md.DateTimeOriginal = convert_datetime_to_ISO(md.DateTimeOriginal)
+        md.MIMEType = md.MIMEType || mimetype || 'image/jpeg';
+        md.SerialNumber = md.SerialNumber || 'unknown';
+        md.ArchiveBucket = this.ARCHIVE_BUCKET;
+        md.ProdBucket = this.SERVING_BUCKET;
+        md.Hash = this.hash(md.SourceFile)
+        return md
     }
 
     validate(file_name) {
@@ -161,7 +198,6 @@ if (import.meta.url === `file://${process.argv[1]}`) handler({ Records: [] });
 import shutil
 import ntpath
 import tempfile
-import mimetypes
 from urllib.parse import unquote_plus
 from datetime import datetime
 import hashlib
@@ -267,35 +303,5 @@ def save_image(tmp_dir, md, config, query=QUERY):
 def convert_datetime_to_ISO(date_time_exif, format=EXIF_DATE_TIME_FORMAT):
     iso_date_time = datetime.strptime(date_time_exif, format).isoformat()
     return iso_date_time
-
-def enrich_meta_data(md, exif_data, mimetype, config):
-    exif_data.update(md)
-    md = exif_data
-    file_ext = os.path.splitext(md["FileName"])[1].lower().replace(".", "")
-    md["FileTypeExtension"] = md["FileTypeExtension"].lower() or file_ext
-    md["DateTimeOriginal"] = convert_datetime_to_ISO(md["DateTimeOriginal"])
-    md["MIMEType"] = md["MIMEType"] or mimetype or "image/jpeg"
-    md["SerialNumber"] = str(md.get("SerialNumber")) or "unknown"
-    md["ArchiveBucket"] = config["ARCHIVE_BUCKET"]
-    md["ProdBucket"] = config["SERVING_BUCKET"]
-    md["Hash"] = hash(md["SourceFile"])
-    return md
-
-def get_exif_data(img_path):
-    os.environ["PATH"] = "{}:{}/".format(os.environ["PATH"], EXIFTOOL_PATH)
-    with exiftool.ExifToolHelper() as et:
-        ret = {}
-        for d in et.get_metadata(img_path):
-            for k, v in d.items():
-                new_key = k if (":" not in k) else k.split(":")[1]
-                ret[new_key] = v
-        return ret
-
-def process_image(tmp_dir, md, config):
-    tmp_path = download(tmp_dir, md["Bucket"], md["Key"])
-    mimetype, _ = mimetypes.guess_type(tmp_path)
-    exif_data = get_exif_data(tmp_path)
-    md = enrich_meta_data(md, exif_data, mimetype, config)
-    save_image(tmp_dir, md, config)
 
 */
