@@ -4,6 +4,7 @@ import { graphql, buildSchema } from 'graphql';
 import { v4 as uuidv4 } from 'uuid';
 import rimraf from 'rimraf';
 import mime from 'mime-types';
+import { strptime } from 'strtime';
 
 import os from 'node:os';
 import path from 'node:path';
@@ -110,11 +111,11 @@ export default class Task {
 
     async process_image(md) {
         const tmp_path = await this.download(md.Bucket, md.Key);
-        const exif_data = await this.get_exif_data(tmp_path)
+        const exif_data = await this.get_exif_data(tmp_path);
 
         const mimetype = mime.lookup(tmp_path);
         md = this.enrich_meta_data(md, exif_data, mimetype);
-        save_image(tmp_dir, md, config)
+        save_image(tmp_dir, md, config);
     }
 
     async get_exif_data(tmp_path) {
@@ -129,18 +130,23 @@ export default class Task {
         return await res.json();
     }
 
+    convert_datetime_to_ISO(date_time_exif, format = EXIF_DATE_TIME_FORMAT) {
+        const iso_date_time = strptime(date_time_exif, format);
+        return iso_date_time.toISOString();
+    }
+
     enrich_meta_data(md, exif_data, mimetype) {
         Object.assign(md, exif_data);
 
         file_ext = path.parse(md.FileName).ext;
         md.FileTypeExtension = md.FileTypeExtension.toLowerCase() || file_ext;
-        md.DateTimeOriginal = convert_datetime_to_ISO(md.DateTimeOriginal)
+        md.DateTimeOriginal = this.convert_datetime_to_ISO(md.DateTimeOriginal);
         md.MIMEType = md.MIMEType || mimetype || 'image/jpeg';
         md.SerialNumber = md.SerialNumber || 'unknown';
         md.ArchiveBucket = this.ARCHIVE_BUCKET;
         md.ProdBucket = this.SERVING_BUCKET;
-        md.Hash = this.hash(md.SourceFile)
-        return md
+        md.Hash = this.hash(md.SourceFile);
+        return md;
     }
 
     validate(file_name) {
@@ -202,7 +208,6 @@ import ntpath
 import tempfile
 from urllib.parse import unquote_plus
 from datetime import datetime
-import hashlib
 from PIL import Image, ImageFile
 ImageFile.LOAD_TRUNCATED_IMAGES = True
 import boto3
@@ -301,9 +306,5 @@ def save_image(tmp_dir, md, config, query=QUERY):
         print("Error saving image: {}".format(e))
         errors = vars(e).get("errors", [])
         copy_to_dlb(errors, md, config)
-
-def convert_datetime_to_ISO(date_time_exif, format=EXIF_DATE_TIME_FORMAT):
-    iso_date_time = datetime.strptime(date_time_exif, format).isoformat()
-    return iso_date_time
 
 */
