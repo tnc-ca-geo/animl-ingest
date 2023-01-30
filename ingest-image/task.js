@@ -4,6 +4,7 @@ import { graphql, buildSchema } from 'graphql';
 import { v4 as uuidv4 } from 'uuid';
 import rimraf from 'rimraf';
 
+import path from 'node:path';
 import { createHash } from 'node:crypto'
 import { pipeline } from 'node:stream/promises';
 import fs from 'node:fs';
@@ -55,10 +56,30 @@ export default class Task {
         this.tmp_dir = fs.mkdtempSync('tnc');
     }
 
-    static async control(stage) {
+    static async control(stage, event) {
         try {
             const task = new Task(stage);
             await task.get_config();
+
+            for (const record of event.Records) {
+                const md = {
+                    Bucket: record.s3.bucket.name,
+                    // Key Decode: https://docs.aws.amazon.com/lambda/latest/dg/with-s3-tutorial.html
+                    Key: decodeURIComponent(record.s3.object.key.replace(/\+/g, " ")),
+                };
+                console.log(`New file detected in ${md.Bucket}: ${md.Key}`);
+                md.FileName = `${path.parse(md.Key).name}${path.parse(md.Key).ext.toLowerCase()}`;
+
+                const ingest_type = this.validate(md.FileName);
+
+                if (ingest_type === IngestType.IMAGE) {
+
+                } else if (ingest_type === IngestType.BATCH) {
+
+                } else {
+                    console.log(`${md.FileName} is not a supported file type`);
+                }
+            }
         } catch (err) {
             if (this.tmp_dir) await rimraf(this.tmp_dir);
             throw err;
@@ -71,6 +92,18 @@ export default class Task {
             WithDecryption: true
         }).promise()).Parameters) {
             this[this.SSM.get(param.Name)] = param.Value
+        }
+    }
+
+    validate(file_name) {
+        const ext = path.parse(file_name).ext;
+
+        if (this.SUPPORTED_FILE_TYPES.includes(ext)) {
+            return IngestType.IMAGE
+        } else if (this.BATCH_FILE_TYPES) {
+            return IngestType.BATCH
+        } else {
+            return IngestType.NONE
         }
     }
 
@@ -109,11 +142,11 @@ export default class Task {
 }
 
 export async function handler(event) {
-     console.log('EVENT', event)
-     await Task.control(process.env.STAGE);
+     console.log('EVENT:', event)
+     await Task.control(process.env.STAGE, event);
 }
 
-if (import.meta.url === `file://${process.argv[1]}`) handler();
+if (import.meta.url === `file://${process.argv[1]}`) handler({ Records: [] });
 
 /**
 import shutil
@@ -256,42 +289,17 @@ def process_image(tmp_dir, md, config):
     md = enrich_meta_data(md, exif_data, mimetype, config)
     save_image(tmp_dir, md, config)
 
-def validate(file_name):
-    ext = os.path.splitext(file_name)
-    if ext[1].lower() in SUPPORTED_FILE_TYPES:
-        return IngestType.IMAGE
-    elif ext[1].lower() in BATCH_FILE_TYPES:
-        return IngestType.BATCH
-    else:
-        return IngestType.NONE
-
-def normalize(file_name):
-    (root, ext) = os.path.splitext(file_name)
-    return root + ext.lower()
-
 @ssm.cache(
   parameter=[value for _, value in SSM_NAMES.items()],
   entry_name="config",
   max_age_in_seconds=300
 )
 def handler(event, context):
-    with tempfile.TemporaryDirectory() as tmp_dir:
-        for record in event["Records"]:
-            md = {
-              "Bucket": record["s3"]["bucket"]["name"],
-              "Key": unquote_plus(record["s3"]["object"]["key"]),
-            }
-            print("New file detected in {}: {}".format(md["Bucket"], md["Key"]))
-            md["FileName"] = normalize(ntpath.basename(md["Key"]))
+        if ingest_type == IngestType.IMAGE:
+            process_image(tmp_dir, md, config)
 
-            ingest_type = validate(md["FileName"])
-            if ingest_type == IngestType.IMAGE:
-                process_image(tmp_dir, md, config)
-
-                print("Deleting {} from {}".format(md["Key"], md["Bucket"]))
-                s3.delete_object(Bucket=md["Bucket"], Key=md["Key"])
-            elif ingest_type == IngestType.BATCH:
-                process_batch(md, config)
-            else:
-                print("{} is not a supported file type".format(md["FileName"]))
+            print("Deleting {} from {}".format(md["Key"], md["Bucket"]))
+            s3.delete_object(Bucket=md["Bucket"], Key=md["Key"])
+        elif ingest_type == IngestType.BATCH:
+            process_batch(md, config)
 */
