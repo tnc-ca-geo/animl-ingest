@@ -1,15 +1,19 @@
 {
     "name": "ingest-image",
+    "private": true,
+    "type": "module",
     "version": "1.0.0",
-    "description": "",
+    "description": "Process a single image from S3",
     "main": "task.js",
     "scripts": {
+        "start": "node index.js",
         "test": "echo \"Error: no test specified\" && exit 1",
         "lint": "eslint task.js"
     },
-    "author": "",
+    "author": "Nick Ingalls <nick@ingalls.ca>",
     "license": "ISC",
     "dependencies": {
+        "aws-sdk": "^2.1304.0",
         "enum": "^3.0.4"
     },
     "devDependencies": {

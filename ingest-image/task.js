@@ -1,24 +1,24 @@
 import AWS from 'aws-sdk';
 import Enum from 'enum';
 
-const BATCH_FILE_TYPES = ['.zip']
-const SUPPORTED_FILE_TYPES = ['.jpg', '.png']
+const BATCH_FILE_TYPES = ['.zip'];
+const SUPPORTED_FILE_TYPES = ['.jpg', '.png'];
 const IngestType = new Enum(['NONE', 'IMAGE', 'BATCH'], 'IngestType');
 
-const EXIF_DATE_TIME_FORMAT = '%Y:%m:%d %H:%M:%S'
+const EXIF_DATE_TIME_FORMAT = '%Y:%m:%d %H:%M:%S';
 const IMG_SIZES = {
     original: null,
     medium: [940, 940],
     small: [120, 120]
-}
+};
 const SSM_NAMES = {
-    ANIML_API_URL: "/api/url-{}".format(process.env.STAGE),
-    BATCH_QUEUE: "/images/batch-queue-{}".format(process.env.STAGE),
-    BATCH_JOB: "/images/batch-job-{}".format(process.env.STAGE),
-    ARCHIVE_BUCKET: "/images/archive-bucket-{}".format(process.env.STAGE),
-    SERVING_BUCKET: "/images/serving-bucket-{}".format(process.env.STAGE),
-    DEADLETTER_BUCKET: "/images/dead-letter-bucket-{}".format(process.env.STAGE),
-}
+    ANIML_API_URL: '/api/url-{}'.format(process.env.STAGE),
+    BATCH_QUEUE: '/images/batch-queue-{}'.format(process.env.STAGE),
+    BATCH_JOB: '/images/batch-job-{}'.format(process.env.STAGE),
+    ARCHIVE_BUCKET: '/images/archive-bucket-{}'.format(process.env.STAGE),
+    SERVING_BUCKET: '/images/serving-bucket-{}'.format(process.env.STAGE),
+    DEADLETTER_BUCKET: '/images/dead-letter-bucket-{}'.format(process.env.STAGE)
+};
 const QUERY = gql(`
     mutation CreateImageRecord($input: CreateImageInput!){
         createImage(input: $input) {
@@ -27,7 +27,7 @@ const QUERY = gql(`
             }
         }
     }
-`)
+`);
 
 /**
 import os

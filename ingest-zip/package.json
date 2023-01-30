@@ -1,8 +1,9 @@
 {
     "name": "ingest-zip",
+    "private": true,
     "type": "module",
     "version": "1.0.0",
-    "description": "",
+    "description": "Unzip Batch Zips and explode them into a directory of single images on S3",
     "main": "index.js",
     "scripts": {
         "start": "node index.js",
