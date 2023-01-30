@@ -15,10 +15,6 @@ import fsp from 'node:fs/promises';
 
 const region = process.env.AWS_DEFAULT_REGION || 'us-west-2';
 
-const s3 = new AWS.S3({ region });
-const batch = new AWS.Batch({ region });
-const ssm = new AWS.SSM({ region });
-
 const IngestType = new Enum(['NONE', 'IMAGE', 'BATCH'], 'IngestType');
 
 /*
@@ -49,7 +45,7 @@ export default class Task {
 
         this.SSM = new Map();
         this.SSM.set(`/api/url-${this.STAGE}`, 'ANIML_API_URL');
-        this.SSM.set(`/api/exif-url-${this.STAGE}`, 'EXIF_API_URL');
+        this.SSM.set(`/api/exif-function-${this.STAGE}`, 'EXIF_FUNCTION');
         this.SSM.set(`/images/batch-queue-${this.STAGE}`, 'BATCH_QUEUE');
         this.SSM.set(`/images/batch-job-${this.STAGE}`, 'BATCH_JOB');
         this.SSM.set(`/images/archive-bucket-${this.STAGE}`, 'ARCHIVE_BUCKET');
@@ -80,6 +76,8 @@ export default class Task {
                     this.process_image(md);
 
                     console.log(`Deleting ${md.Key} from ${md.Bucket}`);
+
+                    const s3 = new AWS.S3({ region });
                     await s3.deleteObject({
                         Bucket: md.Bucket,
                         Key: md.Key
@@ -101,6 +99,8 @@ export default class Task {
     }
 
     async get_config() {
+        const ssm = new AWS.SSM({ region });
+
         for (const param of (await ssm.getParameters({
             Names: Array.from(this.SSM.keys()),
             WithDecryption: true
@@ -111,23 +111,33 @@ export default class Task {
 
     async process_image(md) {
         const tmp_path = await this.download(md.Bucket, md.Key);
-        const exif_data = await this.get_exif_data(tmp_path);
+        const exif_data = await this.get_exif_data(md);
 
         const mimetype = mime.lookup(tmp_path);
         md = this.enrich_meta_data(md, exif_data, mimetype);
-        save_image(tmp_dir, md, config);
+        this.save_image(md);
     }
 
-    async get_exif_data(tmp_path) {
+    async save_image(md) {
+
+    }
+
+    async get_exif_data(md) {
         // TODO Call to Exif Stack
+        const lambda = new AWS.Lambda({ region });
 
-        const res = await fetch(this.EXIF_API_URL, {
-            method: 'GET'
-        });
+        const exif = await lambda.invoke({
+            FunctionName: this.EXIF_FUNCTION,
+            Payload: JSON.stringify({
+                routeKey: 'GET /',
+                queryStringParameters: {
+                    bucket: md.Bucket,
+                    key: md.Key
+                }
+            });
+        }).promise();
 
-        if (!res.ok) throw new Error(await res.text());
-
-        return await res.json();
+        console.error(exif);
     }
 
     convert_datetime_to_ISO(date_time_exif, format = EXIF_DATE_TIME_FORMAT) {
@@ -170,6 +180,7 @@ export default class Task {
         const tmpkey = Key.replace('/', '').replace(' ', '_');
         const tmp_path = `${this.tmp_dir}/${uuidv4()}/${tmpkey}`;
 
+        const s3 = new AWS.S3({ region });
         await pipeline(
             s3.getObject({
                 Bucket, Key
@@ -181,6 +192,7 @@ export default class Task {
     }
 
     async process_batch(md) {
+        const batch = new AWS.Batch({ region });
         await batch.submitJob({
             jobName: 'process-batch',
             jobQueue: this.BAtCH_QUEUE,
