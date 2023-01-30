@@ -1,17 +1,21 @@
 import AWS from 'aws-sdk';
 import Enum from 'enum';
 import { graphql, buildSchema } from 'graphql';
-import { createHash } from 'crypto'
 import { v4 as uuidv4 } from 'uuid';
-import { pipeline } from 'stream/promises';
-import fs from 'fs';
-import fsp from 'fs/promises';
+import rimraf from 'rimraf';
 
-const S3 = new AWS.S3();
-const batch = new AWS.Batch();
+import { createHash } from 'node:crypto'
+import { pipeline } from 'node:stream/promises';
+import fs from 'node:fs';
+import fsp from 'node:fs/promises';
+import os from 'node:os';
 
-const BATCH_FILE_TYPES = ['.zip'];
-const SUPPORTED_FILE_TYPES = ['.jpg', '.png'];
+const region = process.env.AWS_DEFAULT_REGION || 'us-west-2';
+
+const S3 = new AWS.S3({ region });
+const batch = new AWS.Batch({ region });
+const ssm = new AWS.SSM({ region });
+
 const IngestType = new Enum(['NONE', 'IMAGE', 'BATCH'], 'IngestType');
 
 const EXIF_DATE_TIME_FORMAT = '%Y:%m:%d %H:%M:%S';
@@ -19,15 +23,6 @@ const IMG_SIZES = {
     original: null,
     medium: [940, 940],
     small: [120, 120]
-};
-
-const SSM_NAMES = {
-    ANIML_API_URL: `/api/url-${process.env.STAGE}`,
-    BATCH_QUEUE: `/images/batch-queue-${process.env.STAGE}`,
-    BATCH_JOB: `/images/batch-job-${process.env.STAGE}`,
-    ARCHIVE_BUCKET: `/images/archive-bucket-${process.env.STAGE}`,
-    SERVING_BUCKET: `/images/serving-bucket-${process.env.STAGE}`,
-    DEADLETTER_BUCKET: `/images/dead-letter-bucket-${process.env.STAGE}`
 };
 
 /*
@@ -43,23 +38,55 @@ const QUERY = buildSchema(`
 */
 
 export default class Task {
-    static async control() {
-        const task = new Task();
+    constructor(stage='dev') {
+        this.STAGE = stage;
+
+        this.BATCH_FILE_TYPES = ['.zip'];
+        this.SUPPORTED_FILE_TYPES = ['.jpg', '.png'];
+        this.SSM = new Map();
+        this.SSM.set(`/api/url-${this.STAGE}`, 'ANIML_API_URL');
+        this.SSM.set(`/images/batch-queue-${this.STAGE}`, 'BATCH_QUEUE');
+        this.SSM.set(`/images/batch-job-${this.STAGE}`, 'BATCH_JOB');
+        this.SSM.set(`/images/archive-bucket-${this.STAGE}`, 'ARCHIVE_BUCKET');
+        this.SSM.set(`/images/serving-bucket-${this.STAGE}`, 'SERVING_BUCKET');
+        this.SSM.set(`/images/dead-letter-bucket-${this.STAGE}`, 'DEADLETTER_BUCKET');
+        for (const ssm of this.SSM.values()) this[ssm] = null;
+
+        this.tmp_dir = fs.mkdtempSync('tnc');
+    }
+
+    static async control(stage) {
+        try {
+            const task = new Task(stage);
+            await task.get_config();
+        } catch (err) {
+            if (this.tmp_dir) await rimraf(this.tmp_dir);
+            throw err;
+        }
+    }
+
+    async get_config() {
+        for (const param of (await ssm.getParameters({
+            Names: Array.from(this.SSM.keys()),
+            WithDecryption: true
+        }).promise()).Parameters) {
+            this[this.SSM.get(param.Name)] = param.Value
+        }
     }
 
     async hash(img_path) {
         return createHash('md5').update(await fsp.readFile(img_path)).digest('hex');
     }
 
-    async download(tmp_dir, Bucket, Key) {
+    async download(Bucket, Key) {
         console.log(`Downloading ${Key}`);
         const tmpkey = Key.replace('/', '').replace(' ', '_');
-        const tmp_path = `${tmp_dir}/${uuidv4()}/${tmpkey}`;
+        const tmp_path = `${this.tmp_dir}/${uuidv4()}/${tmpkey}`;
 
         await pipeline(
             s3.getObject({
                 Bucket, Key
-            }),
+            }).createReadStream(),
             fs.createWriteStream(tmp_path)
         );
 
@@ -81,15 +108,14 @@ export default class Task {
     }
 }
 
-export async function handler() {
-     await Task.control();
+export async function handler(event) {
+     console.log('EVENT', event)
+     await Task.control(process.env.STAGE);
 }
 
 if (import.meta.url === `file://${process.argv[1]}`) handler();
 
 /**
-import os
-import json
 import shutil
 import ntpath
 import tempfile
@@ -243,29 +269,12 @@ def normalize(file_name):
     (root, ext) = os.path.splitext(file_name)
     return root + ext.lower()
 
-def get_config(context, ssm_names=SSM_NAMES):
-    ret = {}
-    for key, value in ssm_names.items():
-        try:
-            param_name = value.split("/")[-1]
-            ret[key] = getattr(context,"config").get(param_name)
-            if ret[key] is None:
-                raise ValueError(value)
-        except ValueError as err:
-            print("SSM name '{}' was not found".format(err))
-        except:
-            print("An error occured fetching remote config")
-    return ret
-
 @ssm.cache(
   parameter=[value for _, value in SSM_NAMES.items()],
   entry_name="config",
   max_age_in_seconds=300
 )
 def handler(event, context):
-    print("event: {}".format(event))
-    config = get_config(context)
-
     with tempfile.TemporaryDirectory() as tmp_dir:
         for record in event["Records"]:
             md = {

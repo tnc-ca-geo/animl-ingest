@@ -16,6 +16,7 @@
         "aws-sdk": "^2.1304.0",
         "enum": "^3.0.4",
         "graphql": "^16.6.0",
+        "rimraf": "^4.1.2",
         "uuid": "^9.0.0"
     },
     "devDependencies": {
