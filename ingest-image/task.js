@@ -5,6 +5,7 @@ import { v4 as uuidv4 } from 'uuid';
 import rimraf from 'rimraf';
 import mime from 'mime-types';
 
+import os from 'node:os';
 import path from 'node:path';
 import { createHash } from 'node:crypto';
 import { pipeline } from 'node:stream/promises';
@@ -55,7 +56,7 @@ export default class Task {
         this.SSM.set(`/images/dead-letter-bucket-${this.STAGE}`, 'DEADLETTER_BUCKET');
         for (const ssm of this.SSM.values()) this[ssm] = null;
 
-        this.tmp_dir = fs.mkdtempSync('tnc');
+        this.tmp_dir = fs.mkdtempSync(path.join(os.tmpdir(), 'tnc-'));
     }
 
     static async control(stage, event) {
@@ -83,14 +84,15 @@ export default class Task {
                         Key: md.Key
                     }).promise();
 
-                    await rimraf(this.tmp_dir);
-                    this.tmp_dir = null;
                 } else if (ingest_type === IngestType.BATCH) {
                     this.process_batch(md);
                 } else {
                     console.log(`${md.FileName} is not a supported file type`);
                 }
             }
+
+            await rimraf(this.tmp_dir);
+            this.tmp_dir = null;
         } catch (err) {
             if (this.tmp_dir) await rimraf(this.tmp_dir);
             throw err;
