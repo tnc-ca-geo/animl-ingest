@@ -38,6 +38,11 @@ provider:
           Resource: '*'
         - Effect: Allow
           Action:
+            - 'lambda:GetFunction'
+            - 'lambda:invoke'
+          Resource: !Sub arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:exif-api-*
+        - Effect: Allow
+          Action:
             - ssm:GetParameter
             - ssm:GetParameters
           Resource:
