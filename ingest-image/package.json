@@ -19,6 +19,7 @@
         "mime-types": "^2.1.35",
         "rimraf": "^4.1.2",
         "sharp": "^0.31.3",
+        "strtime": "^1.1.2",
         "uuid": "^9.0.0"
     },
     "devDependencies": {

@@ -4,7 +4,9 @@ import { graphql, buildSchema } from 'graphql';
 import { v4 as uuidv4 } from 'uuid';
 import rimraf from 'rimraf';
 import mime from 'mime-types';
-import { strptime } from 'strtime';
+
+import time from 'strtime';
+const strptime = time.strptime;
 
 import os from 'node:os';
 import path from 'node:path';
@@ -57,8 +59,9 @@ export default class Task {
     }
 
     static async control(stage, event) {
+        const task = new Task(stage);
+
         try {
-            const task = new Task(stage);
             await task.get_config();
 
             for (const record of event.Records) {
@@ -70,10 +73,10 @@ export default class Task {
                 console.log(`New file detected in ${md.Bucket}: ${md.Key}`);
                 md.FileName = `${path.parse(md.Key).name}${path.parse(md.Key).ext.toLowerCase()}`;
 
-                const ingest_type = this.validate(md.FileName);
+                const ingest_type = task.validate(md.FileName);
 
                 if (ingest_type === IngestType.IMAGE) {
-                    this.process_image(md);
+                    task.process_image(md);
 
                     console.log(`Deleting ${md.Key} from ${md.Bucket}`);
 
@@ -84,16 +87,16 @@ export default class Task {
                     }).promise();
 
                 } else if (ingest_type === IngestType.BATCH) {
-                    this.process_batch(md);
+                    task.process_batch(md);
                 } else {
                     console.log(`${md.FileName} is not a supported file type`);
                 }
             }
 
-            await rimraf(this.tmp_dir);
-            this.tmp_dir = null;
+            await rimraf(task.tmp_dir);
+            task.tmp_dir = null;
         } catch (err) {
-            if (this.tmp_dir) await rimraf(this.tmp_dir);
+            if (task.tmp_dir) await rimraf(task.tmp_dir);
             throw err;
         }
     }
@@ -134,13 +137,13 @@ export default class Task {
                     bucket: md.Bucket,
                     key: md.Key
                 }
-            });
+            })
         }).promise();
 
         console.error(exif);
     }
 
-    convert_datetime_to_ISO(date_time_exif, format = EXIF_DATE_TIME_FORMAT) {
+    convert_datetime_to_ISO(date_time_exif, format = this.EXIF_DATE_TIME_FORMAT) {
         const iso_date_time = strptime(date_time_exif, format);
         return iso_date_time.toISOString();
     }
