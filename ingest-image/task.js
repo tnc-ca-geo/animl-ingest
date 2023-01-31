@@ -89,7 +89,7 @@ export default class Task {
 
                 } else if (ingest_type === IngestType.BATCH) {
                     console.log('Processing as batch upload');
-                    task.process_batch(md);
+                    await task.process_batch(md);
                 } else {
                     console.log(`${md.FileName} is not a supported file type`);
                 }
