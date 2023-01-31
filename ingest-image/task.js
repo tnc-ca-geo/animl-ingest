@@ -198,7 +198,7 @@ export default class Task {
         const batch = new AWS.Batch({ region });
         await batch.submitJob({
             jobName: 'process-batch',
-            jobQueue: this.BAtCH_QUEUE,
+            jobQueue: this.BATCH_QUEUE,
             jobDefinition: this.BATCH_JOB,
             containerOverrides: {
                 environment: [{
