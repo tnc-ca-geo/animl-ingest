@@ -10,8 +10,10 @@ provider:
 
   ecr:
     images:
-      batch:
+      zip:
         path: ./ingest-zip/
+      image:
+        path: ./ingest-image/
   iam:
     role:
       managedPolicies:
@@ -54,12 +56,14 @@ provider:
 
 
 functions:
-  IngestBatch:
+  IngestZip:
     image:
-      name: batch
+      name: zip
+    name: IngestZip-${opt:stage, self:provider.stage, 'dev'}
   IngestImage:
-    name: IngestImageLambdaFunction-${opt:stage, self:provider.stage, 'dev'}
-    handler: ingest-image/handler.handler
+    image:
+      name: image
+    name: IngestImage-${opt:stage, self:provider.stage, 'dev'}
     maximumRetryAttempts: 0
     timeout: 15
     events:
