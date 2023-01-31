@@ -77,7 +77,7 @@ export default class Task {
 
                 if (ingest_type === IngestType.IMAGE) {
                     console.log('Processing as image upload');
-                    task.process_image(md);
+                    await task.process_image(md);
 
                     console.log(`Deleting ${md.Key} from ${md.Bucket}`);
 
@@ -86,7 +86,6 @@ export default class Task {
                         Bucket: md.Bucket,
                         Key: md.Key
                     }).promise();
-
                 } else if (ingest_type === IngestType.BATCH) {
                     console.log('Processing as batch upload');
                     await task.process_batch(md);
@@ -120,7 +119,7 @@ export default class Task {
 
         const mimetype = mime.lookup(tmp_path);
         md = this.enrich_meta_data(md, exif_data, mimetype);
-        this.save_image(md);
+        await this.save_image(md);
     }
 
     async save_image(md) {
@@ -143,6 +142,8 @@ export default class Task {
         }).promise();
 
         console.error(exif);
+
+        return exif;
     }
 
     convert_datetime_to_ISO(date_time_exif, format = this.EXIF_DATE_TIME_FORMAT) {
