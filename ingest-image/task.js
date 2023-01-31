@@ -76,6 +76,7 @@ export default class Task {
                 const ingest_type = task.validate(md.FileName);
 
                 if (ingest_type === IngestType.IMAGE) {
+                    console.log('Processing as image upload');
                     task.process_image(md);
 
                     console.log(`Deleting ${md.Key} from ${md.Bucket}`);
@@ -87,6 +88,7 @@ export default class Task {
                     }).promise();
 
                 } else if (ingest_type === IngestType.BATCH) {
+                    console.log('Processing as batch upload');
                     task.process_batch(md);
                 } else {
                     console.log(`${md.FileName} is not a supported file type`);
