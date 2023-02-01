@@ -79,7 +79,6 @@ export default class Task {
                     await task.process_image(md);
 
                     console.log(`Deleting ${md.Key} from ${md.Bucket}`);
-
                     const s3 = new AWS.S3({ region });
                     await s3.deleteObject({
                         Bucket: md.Bucket,
@@ -96,6 +95,7 @@ export default class Task {
             await rimraf(task.tmp_dir);
             task.tmp_dir = null;
         } catch (err) {
+            console.error(err);
             if (task.tmp_dir) await rimraf(task.tmp_dir);
             throw err;
         }
@@ -113,16 +113,16 @@ export default class Task {
     }
 
     async process_image(md) {
-        const tmp_path = await this.download(md.Bucket, md.Key);
+        const tmp_path = await this.download(md);
         const exif_data = await this.get_exif_data(md);
 
         const mimetype = mime.lookup(tmp_path);
-        md = this.enrich_meta_data(md, exif_data, mimetype);
+        md = await this.enrich_meta_data(md, exif_data, mimetype);
         await this.save_image(md);
     }
 
     async save_image(md) {
-
+        console.error(md);
     }
 
     get_exif_data(md) {
@@ -153,9 +153,10 @@ export default class Task {
         return iso_date_time.toISOString();
     }
 
-    enrich_meta_data(md, exif_data, mimetype) {
+    async enrich_meta_data(md, exif_data, mimetype) {
         for (const key in exif_data) {
-            md[key.replace(/^.*?:/, '')] = exif_data[key];
+            const keyp = key.replace(/^.*?:/, '');
+            if (!md[keyp]) md[keyp] = exif_data[key];
         }
 
         const file_ext = path.parse(md.FileName).ext;
@@ -165,7 +166,7 @@ export default class Task {
         md.SerialNumber = md.SerialNumber || 'unknown';
         md.ArchiveBucket = this.ARCHIVE_BUCKET;
         md.ProdBucket = this.SERVING_BUCKET;
-        md.Hash = this.hash(md.SourceFile);
+        md.Hash = await this.hash(md.FileName);
         return md;
     }
 
@@ -182,21 +183,23 @@ export default class Task {
     }
 
     async hash(img_path) {
-        return createHash('md5').update(await fsp.readFile(img_path)).digest('hex');
+        return createHash('md5').update(await fsp.readFile(path.resolve(this.tmp_dir, img_path))).digest('hex');
     }
 
-    async download(Bucket, Key) {
-        console.log(`Downloading ${Key}`);
-        const tmpkey = Key.replace('/', '').replace(' ', '_');
+    async download(md) {
+        console.log(`Downloading s3://${md.Bucket}/${md.Key}`);
+        const tmpkey = md.Key.replace('/', '').replace(' ', '_');
         const tmp_path = `${this.tmp_dir}/${tmpkey}`;
 
         const s3 = new AWS.S3({ region });
         await pipeline(
             s3.getObject({
-                Bucket, Key
+                Bucket: md.Bucket, Key: md.Key
             }).createReadStream(),
             fs.createWriteStream(tmp_path)
         );
+
+        md.FileName = tmp_path;
 
         return tmp_path;
     }
