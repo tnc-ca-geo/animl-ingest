@@ -1,6 +1,5 @@
 import AWS from 'aws-sdk';
 import Enum from 'enum';
-import { graphql, buildSchema } from 'graphql';
 import rimraf from 'rimraf';
 import mime from 'mime-types';
 import sharp from 'sharp';
@@ -19,8 +18,7 @@ const region = process.env.AWS_DEFAULT_REGION || 'us-west-2';
 
 const IngestType = new Enum(['NONE', 'IMAGE', 'BATCH'], 'IngestType');
 
-/*
-const QUERY = buildSchema(`
+const QUERY = `
     mutation CreateImageRecord($input: CreateImageInput!){
         createImage(input: $input) {
             image {
@@ -29,7 +27,6 @@ const QUERY = buildSchema(`
         }
     }
 `);
-*/
 
 export default class Task {
     constructor(stage = 'dev') {
@@ -124,21 +121,28 @@ export default class Task {
 
     async save_image(md) {
         console.log(`Posting metadata to API: ${md}`);
-        image_input = {"input": { "md": md }}
+        const image_input = {"input": { "md": md }}
 
         const res = await fetch(this.ANIML_API_URL, {
             headers: {
+                'Content-Type': 'application/json',
                 "x-api-key": os.environ["APIKEY"]
             },
-            body: image_input
+            body: JSON.stringify({
+                query: QUERY,
+                variables: {
+                    input: {
+                        md: md
+                    }
+                }
+            });
         });
 
         if (!res.ok) throw new Error(await res.text());
 
-        try {
-            r = client.execute(query, variable_values=image_input)
-            console.log(`Response: ${r}`);
+        console.log(await res.json());
 
+        try {
             await this.copy_to_prod(tmp_dir, md)
             await this.copy_to_archive(md)
         } catch (err) {
