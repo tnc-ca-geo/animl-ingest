@@ -26,7 +26,7 @@ const QUERY = `
             }
         }
     }
-`);
+`;
 
 export default class Task {
     constructor(stage = 'dev') {
@@ -121,12 +121,11 @@ export default class Task {
 
     async save_image(md) {
         console.log(`Posting metadata to API: ${md}`);
-        const image_input = {"input": { "md": md }}
 
         const res = await fetch(this.ANIML_API_URL, {
             headers: {
                 'Content-Type': 'application/json',
-                "x-api-key": os.environ["APIKEY"]
+                'x-api-key': os.environ['APIKEY']
             },
             body: JSON.stringify({
                 query: QUERY,
@@ -135,7 +134,7 @@ export default class Task {
                         md: md
                     }
                 }
-            });
+            })
         });
 
         if (!res.ok) throw new Error(await res.text());
@@ -143,18 +142,32 @@ export default class Task {
         console.log(await res.json());
 
         try {
-            await this.copy_to_prod(tmp_dir, md)
-            await this.copy_to_archive(md)
+            await this.copy_to_prod(md);
+            await this.copy_to_archive(md);
         } catch (err) {
             console.log(`Error saving image: ${err}`);
-            errors = vars(e).get("errors", [])
-            copy_to_dlb(errors, md, config)
+            await this.copy_to_dlb(err, md);
         }
+    }
 
+    async copy_to_dlb(err, md) {
+        const Bucket = this.DEADLETTER_BUCKET;
+        const dest_dir = err.message || 'UNKNOWN_ERROR';
+
+        const Key = os.path.join(dest_dir, path.parse(md.FileName).base);
+        console.log(`Transferring s3://${Bucket}/${Key}`);
+
+        const s3 = new AWS.S3({ region });
+        await s3.copyObject({
+            CopySource: `${md.Bucket}/${md.Key}`,
+            ContentType: md.MIMEType,
+            Bucket: Bucket,
+            Key: Key
+        }).promise();
     }
 
     async resize(md, filename, dims) {
-        const tmp_path = os.path.join(this.tmp_dir, filename)
+        const tmp_path = os.path.join(this.tmp_dir, filename);
         await sharp(md.FileName)
             .resize(dims[0], dims[1])
             .toFile(tmp_path);
@@ -163,33 +176,33 @@ export default class Task {
     }
 
     async copy_to_prod(md) {
-        const Bucket = md["ProdBucket"]
+        const Bucket = md['ProdBucket'];
         const s3 = new AWS.S3({ region });
 
         for (const size in this.IMG_SIZES) {
-            //create filename and key
+            // create filename and key
             const filename = `${md.Hash}-${size}.${md.FileTypeExtension}`;
-            const Key = os.path.join(size, filename)
+            const Key = os.path.join(size, filename);
             console.log(`Transferring ${Key} to ${Bucket}`);
 
             if (this.IMG_SIZES[size]) {
                 // resize locally then upload to s3
-                tmp_path = await this.resize(md, filename, this.IMG_SIZES[size])
+                const tmp_path = await this.resize(md, filename, this.IMG_SIZES[size]);
                 // NOTE: S3 is not deferring to my attempts to manually set
                 // Content Type for RidgeTec images. It only works for Buckeye images
                 await s3.upload({
                     Body: fs.readFileSync(tmp_path),
                     Bucket: Bucket,
                     Key: Key,
-                    ContentType: md["MIMEType"]
+                    ContentType: md['MIMEType']
                 }).promise();
             } else {
                 // copy original image directly over from staging bucket
                 await s3.copyObject({
                     CopySource: `${md.Bucket}/${md.Key}`,
-                    ContentType: md["MIMEType"],
+                    ContentType: md['MIMEType'],
                     Bucket: Bucket,
-                    Key: Key,
+                    Key: Key
                 }).promise();
             }
         }
@@ -201,7 +214,7 @@ export default class Task {
         console.log(`Calling Exif Lambda: ${this.EXIF_FUNCTION}`);
 
         return new Promise((resolve, reject) => {
-            const exif = lambda.invoke({
+            lambda.invoke({
                 FunctionName: this.EXIF_FUNCTION,
                 InvocationType: 'RequestResponse',
                 Payload: JSON.stringify({
@@ -211,10 +224,10 @@ export default class Task {
                         key: md.Key
                     }
                 })
-            }, (err, data) => { //.promise() doesn't work here
+            }, (err, data) => { // .promise() doesn't work here
                 if (err) return reject(err);
-                return resolve(JSON.parse(JSON.parse(data.Payload).body))
-            })
+                return resolve(JSON.parse(JSON.parse(data.Payload).body));
+            });
         });
     }
 
@@ -307,21 +320,6 @@ if (import.meta.url === `file://${process.argv[1]}`) handler({ Records: [{
 }] });
 
 /**
-def copy_to_dlb(errors, md, config):
-    dl_bkt = config["DEADLETTER_BUCKET"]
-    copy_source = { "Bucket": md["Bucket"], "Key": md["Key"] }
-    dest_dir = "UNKNOWN_ERROR"
-    for error in errors:
-        if "extensions" in error and "code" in error["extensions"]:
-            dest_dir = error["extensions"]["code"]
-    dlb_key = os.path.join(dest_dir, md["FileName"])
-    print("Transferring {} to {}".format(dlb_key, dl_bkt))
-    s3.copy_object(
-        CopySource=copy_source,
-        ContentType=md["MIMEType"],
-        Bucket=dl_bkt,
-        Key=dlb_key,
-    )
 
 def copy_to_archive(md):
     archive_bkt = md["ArchiveBucket"]
