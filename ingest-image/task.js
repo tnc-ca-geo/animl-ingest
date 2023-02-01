@@ -166,6 +166,24 @@ export default class Task {
         }).promise();
     }
 
+    async copy_to_archive(md) {
+        const Bucket = md['ArchiveBucket'];
+        const parse = path.parse('FileName');
+        const archive_filename = parse.base + '_' + md['Hash'] + parse.ext;
+        const Key = os.path.join(md['SerialNumber'], archive_filename);
+
+        console.log(`Transferring s3://${Bucket}/${Key}`);
+        const s3 = new AWS.S3({ region });
+        await s3.copyObject({
+            CopySource: `${md.Bucket}/${md.Key}`,
+            ContentType: md.MIMEType,
+            Bucket: Bucket,
+            Key: Key
+        }).promise();
+
+        return md;
+    }
+
     async resize(md, filename, dims) {
         const tmp_path = os.path.join(this.tmp_dir, filename);
         await sharp(md.FileName)
@@ -318,22 +336,3 @@ if (import.meta.url === `file://${process.argv[1]}`) handler({ Records: [{
         }
     }
 }] });
-
-/**
-
-def copy_to_archive(md):
-    archive_bkt = md["ArchiveBucket"]
-    copy_source = { "Bucket": md["Bucket"], "Key": md["Key"] }
-    file_base, file_ext = os.path.splitext(md["FileName"])
-    archive_filename = file_base + "_" + md["Hash"] + file_ext
-    archive_key = os.path.join(md["SerialNumber"], archive_filename)
-    print("Transferring {} to {}".format(archive_key, archive_bkt))
-    s3.copy_object(
-        CopySource=copy_source,
-        ContentType=md["MIMEType"],
-        Bucket=archive_bkt,
-        Key=archive_key,
-    )
-    return md
-
-*/
