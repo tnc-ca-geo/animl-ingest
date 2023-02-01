@@ -3,6 +3,7 @@ import Enum from 'enum';
 import { graphql, buildSchema } from 'graphql';
 import rimraf from 'rimraf';
 import mime from 'mime-types';
+import sharp from 'sharp';
 
 import time from 'strtime';
 const strptime = time.strptime;
@@ -122,7 +123,72 @@ export default class Task {
     }
 
     async save_image(md) {
-        console.error(md);
+        console.log(`Posting metadata to API: ${md}`);
+        image_input = {"input": { "md": md }}
+
+        const res = await fetch(this.ANIML_API_URL, {
+            headers: {
+                "x-api-key": os.environ["APIKEY"]
+            },
+            body: image_input
+        });
+
+        if (!res.ok) throw new Error(await res.text());
+
+        try {
+            r = client.execute(query, variable_values=image_input)
+            console.log(`Response: ${r}`);
+
+            await this.copy_to_prod(tmp_dir, md)
+            await this.copy_to_archive(md)
+        } catch (err) {
+            console.log(`Error saving image: ${err}`);
+            errors = vars(e).get("errors", [])
+            copy_to_dlb(errors, md, config)
+        }
+
+    }
+
+    async resize(md, filename, dims) {
+        const tmp_path = os.path.join(this.tmp_dir, filename)
+        await sharp(md.FileName)
+            .resize(dims[0], dims[1])
+            .toFile(tmp_path);
+
+        return tmp_path;
+    }
+
+    async copy_to_prod(md) {
+        const Bucket = md["ProdBucket"]
+        const s3 = new AWS.S3({ region });
+
+        for (const size in this.IMG_SIZES) {
+            //create filename and key
+            const filename = `${md.Hash}-${size}.${md.FileTypeExtension}`;
+            const Key = os.path.join(size, filename)
+            console.log(`Transferring ${Key} to ${Bucket}`);
+
+            if (this.IMG_SIZES[size]) {
+                // resize locally then upload to s3
+                tmp_path = await this.resize(md, filename, this.IMG_SIZES[size])
+                // NOTE: S3 is not deferring to my attempts to manually set
+                // Content Type for RidgeTec images. It only works for Buckeye images
+                await s3.upload({
+                    Body: fs.readFileSync(tmp_path),
+                    Bucket: Bucket,
+                    Key: Key,
+                    ContentType: md["MIMEType"]
+                }).promise();
+            } else {
+                // copy original image directly over from staging bucket
+                await s3.copyObject({
+                    CopySource: `${md.Bucket}/${md.Key}`,
+                    ContentType: md["MIMEType"],
+                    Bucket: Bucket,
+                    Key: Key,
+                }).promise();
+            }
+        }
     }
 
     get_exif_data(md) {
@@ -237,13 +303,6 @@ if (import.meta.url === `file://${process.argv[1]}`) handler({ Records: [{
 }] });
 
 /**
-def resize(tmp_dir, md, filename, dims):
-    tmp_path = os.path.join(tmp_dir, filename)
-    with Image.open(md["SourceFile"]) as image:
-        image.thumbnail(dims)
-        image.save(tmp_path)
-    return tmp_path
-
 def copy_to_dlb(errors, md, config):
     dl_bkt = config["DEADLETTER_BUCKET"]
     copy_source = { "Bucket": md["Bucket"], "Key": md["Key"] }
@@ -274,54 +333,5 @@ def copy_to_archive(md):
         Key=archive_key,
     )
     return md
-
-def copy_to_prod(tmp_dir, md, sizes=IMG_SIZES):
-    prod_bkt = md["ProdBucket"]
-    for size, dims in sizes.items():
-        # create filename and key
-        filename = "{}-{}.{}".format(md["Hash"], size, md["FileTypeExtension"])
-        prod_key = os.path.join(size, filename)
-        print("Transferring {} to {}".format(prod_key, prod_bkt))
-        if dims is not None:
-            # resize locally then upload to s3
-            tmp_path = resize(tmp_dir, md, filename, dims)
-            # NOTE: S3 is not deferring to my attempts to manually set
-            # Content Type for RidgeTec images. It only works for Buckeye images
-            s3.upload_file(
-                tmp_path,
-                prod_bkt,
-                prod_key,
-                ExtraArgs={"ContentType": md["MIMEType"]}
-            )
-        else:
-            # copy original image directly over from staging bucket
-            copy_source = { "Bucket": md["Bucket"], "Key": md["Key"] }
-            s3.copy_object(
-                CopySource=copy_source,
-                ContentType=md["MIMEType"],
-                Bucket=prod_bkt,
-                Key=prod_key,
-            )
-
-def save_image(tmp_dir, md, config, query=QUERY):
-    print("Posting metadata to API: {}".format(md))
-    url = config["ANIML_API_URL"]
-    image_input = {"input": { "md": md }}
-    headers = {
-        "x-api-key": os.environ["APIKEY"]
-    }
-    transport = RequestsHTTPTransport(
-        url, verify=True, retries=3, headers=headers
-    )
-    client = Client(transport=transport, fetch_schema_from_transport=True)
-    try:
-        r = client.execute(query, variable_values=image_input)
-        print("Response: {}".format(r))
-        copy_to_prod(tmp_dir, md)
-        copy_to_archive(md)
-    except Exception as e:
-        print("Error saving image: {}".format(e))
-        errors = vars(e).get("errors", [])
-        copy_to_dlb(errors, md, config)
 
 */
