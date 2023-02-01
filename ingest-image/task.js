@@ -125,15 +125,15 @@ export default class Task {
 
     }
 
-    async get_exif_data(md) {
+    get_exif_data(md) {
         const lambda = new AWS.Lambda({ region });
 
-        console.log('Calling Lambda Exif Service');
+        console.log(`Calling Exif Lambda: ${this.EXIF_FUNCTION}`);
 
-        let exif = {};
-        try {
-            const exif = await lambda.invoke({
+        return new Promise((resolve, reject) => {
+            const exif = lambda.invoke({
                 FunctionName: this.EXIF_FUNCTION,
+                InvocationType: 'RequestResponse',
                 Payload: JSON.stringify({
                     routeKey: 'GET /',
                     queryStringParameters: {
@@ -141,15 +141,11 @@ export default class Task {
                         key: md.Key
                     }
                 })
-            }).promise();
-        } catch (err) {
-            console.error(err);
-            exif = {};
-        }
-
-        console.error('EXIF', exif);
-
-        return exif;
+            }, (err, data) => { //.promise() doesn't work here
+                if (err) return reject(err);
+                return resolve(JSON.parse(JSON.parse(data.Payload).body))
+            })
+        });
     }
 
     convert_datetime_to_ISO(date_time_exif, format = this.EXIF_DATE_TIME_FORMAT) {
@@ -158,10 +154,12 @@ export default class Task {
     }
 
     enrich_meta_data(md, exif_data, mimetype) {
-        Object.assign(md, exif_data);
+        for (const key in exif_data) {
+            md[key.replace(/^.*?:/, '')] = exif_data[key];
+        }
 
-        file_ext = path.parse(md.FileName).ext;
-        md.FileTypeExtension = md.FileTypeExtension.toLowerCase() || file_ext;
+        const file_ext = path.parse(md.FileName).ext;
+        md.FileTypeExtension = md.FileTypeExtension ? md.FileTypeExtension.toLowerCase() : file_ext;
         md.DateTimeOriginal = this.convert_datetime_to_ISO(md.DateTimeOriginal);
         md.MIMEType = md.MIMEType || mimetype || 'image/jpeg';
         md.SerialNumber = md.SerialNumber || 'unknown';
@@ -224,7 +222,16 @@ export async function handler(event) {
     await Task.control(process.env.STAGE, event);
 }
 
-if (import.meta.url === `file://${process.argv[1]}`) handler({ Records: [] });
+if (import.meta.url === `file://${process.argv[1]}`) handler({ Records: [{
+    s3: {
+        bucket: {
+            name: 'animl-images-ingestion-dev'
+        },
+        object: {
+            key: 'batch-d552163c-91cc-4dcf-9d6d-b4c903d60a8c/00462f0fc49f8346c644bef8a98bc8dd.jpg'
+        }
+    }
+}] });
 
 /**
 def resize(tmp_dir, md, filename, dims):
