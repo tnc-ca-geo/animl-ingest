@@ -127,21 +127,28 @@ export default class Task {
     }
 
     async get_exif_data(md) {
-        // TODO Call to Exif Stack
         const lambda = new AWS.Lambda({ region });
 
-        const exif = await lambda.invoke({
-            FunctionName: this.EXIF_FUNCTION,
-            Payload: JSON.stringify({
-                routeKey: 'GET /',
-                queryStringParameters: {
-                    bucket: md.Bucket,
-                    key: md.Key
-                }
-            })
-        }).promise();
+        console.log('Calling Lambda Exif Service');
 
-        console.error(exif);
+        let exif = {};
+        try {
+            const exif = await lambda.invoke({
+                FunctionName: this.EXIF_FUNCTION,
+                Payload: JSON.stringify({
+                    routeKey: 'GET /',
+                    queryStringParameters: {
+                        bucket: md.Bucket,
+                        key: md.Key
+                    }
+                })
+            }).promise();
+        } catch (err) {
+            console.error(err);
+            exif = {};
+        }
+
+        console.error('EXIF', exif);
 
         return exif;
     }
@@ -221,23 +228,6 @@ export async function handler(event) {
 if (import.meta.url === `file://${process.argv[1]}`) handler({ Records: [] });
 
 /**
-import shutil
-import ntpath
-import tempfile
-from urllib.parse import unquote_plus
-from datetime import datetime
-from PIL import Image, ImageFile
-ImageFile.LOAD_TRUNCATED_IMAGES = True
-import boto3
-from enum import Enum
-from gql import Client, gql
-from gql.transport.requests import RequestsHTTPTransport
-import exiftool
-from lambda_cache import ssm
-
-
-
-
 def resize(tmp_dir, md, filename, dims):
     tmp_path = os.path.join(tmp_dir, filename)
     with Image.open(md["SourceFile"]) as image:
