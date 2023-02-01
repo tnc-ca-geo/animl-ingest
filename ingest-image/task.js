@@ -1,7 +1,6 @@
 import AWS from 'aws-sdk';
 import Enum from 'enum';
 import { graphql, buildSchema } from 'graphql';
-import { v4 as uuidv4 } from 'uuid';
 import rimraf from 'rimraf';
 import mime from 'mime-types';
 
@@ -191,7 +190,7 @@ export default class Task {
     async download(Bucket, Key) {
         console.log(`Downloading ${Key}`);
         const tmpkey = Key.replace('/', '').replace(' ', '_');
-        const tmp_path = `${this.tmp_dir}/${uuidv4()}/${tmpkey}`;
+        const tmp_path = `${this.tmp_dir}/${tmpkey}`;
 
         const s3 = new AWS.S3({ region });
         await pipeline(
