@@ -124,6 +124,7 @@ export default class Task {
         console.log(`Posting metadata to API: ${md}`);
 
         const res = await fetch(this.ANIML_API_URL, {
+            method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
                 'x-api-key': APIKEY
