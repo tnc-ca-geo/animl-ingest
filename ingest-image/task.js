@@ -18,6 +18,7 @@ const region = process.env.AWS_DEFAULT_REGION || 'us-west-2';
 
 const IngestType = new Enum(['NONE', 'IMAGE', 'BATCH'], 'IngestType');
 
+const APIKEY = process.env.APIKEY;
 const QUERY = `
     mutation CreateImageRecord($input: CreateImageInput!){
         createImage(input: $input) {
@@ -125,7 +126,7 @@ export default class Task {
         const res = await fetch(this.ANIML_API_URL, {
             headers: {
                 'Content-Type': 'application/json',
-                'x-api-key': os.environ['APIKEY']
+                'x-api-key': APIKEY
             },
             body: JSON.stringify({
                 query: QUERY,
