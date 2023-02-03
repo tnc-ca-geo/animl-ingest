@@ -123,27 +123,27 @@ export default class Task {
     async save_image(md) {
         console.log(`Posting metadata to API: ${md}`);
 
-        const res = await fetch(this.ANIML_API_URL, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'x-api-key': APIKEY
-            },
-            body: JSON.stringify({
-                query: QUERY,
-                variables: {
-                    input: {
-                        md: md
-                    }
-                }
-            })
-        });
-
-        if (!res.ok) throw new Error(await res.text());
-
-        console.log(await res.json());
-
         try {
+            const res = await fetch(this.ANIML_API_URL, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'x-api-key': APIKEY
+                },
+                body: JSON.stringify({
+                    query: QUERY,
+                    variables: {
+                        input: {
+                            md: md
+                        }
+                    }
+                })
+            });
+
+            if (!res.ok) throw new Error(await res.text());
+
+            console.log(await res.json());
+
             await this.copy_to_prod(md);
             await this.copy_to_archive(md);
         } catch (err) {
