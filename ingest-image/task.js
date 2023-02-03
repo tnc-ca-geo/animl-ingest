@@ -156,7 +156,7 @@ export default class Task {
         const Bucket = this.DEADLETTER_BUCKET;
         const dest_dir = err.message || 'UNKNOWN_ERROR';
 
-        const Key = os.path.join(dest_dir, path.parse(md.FileName).base);
+        const Key = path.resolve(dest_dir, path.parse(md.FileName).base);
         console.log(`Transferring s3://${Bucket}/${Key}`);
 
         const s3 = new AWS.S3({ region });
