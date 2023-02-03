@@ -189,7 +189,9 @@ export default class Task {
     async resize(md, filename, dims) {
         const tmp_path = path.join(this.tmp_dir, filename);
         await sharp(md.FileName)
-            .resize(dims[0], dims[1])
+            .resize(dims[0], dims[1], {
+                fit: 'contain'
+            })
             .toFile(tmp_path);
 
         return tmp_path;
