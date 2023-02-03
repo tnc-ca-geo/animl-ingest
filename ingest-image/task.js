@@ -170,7 +170,7 @@ export default class Task {
 
     async copy_to_archive(md) {
         const Bucket = md['ArchiveBucket'];
-        const parse = path.parse('FileName');
+        const parse = path.parse(md.FileName);
         const archive_filename = parse.base + '_' + md['Hash'] + parse.ext;
         const Key = path.join(String(md['SerialNumber']), archive_filename);
 
@@ -188,7 +188,7 @@ export default class Task {
 
     async resize(md, filename, dims) {
         const tmp_path = path.join(this.tmp_dir, filename);
-        await sharp(md.FileName)
+        await sharp(path.join(this.tmp_dir, md.FileName))
             .resize(dims[0], dims[1], {
                 fit: 'contain'
             })
@@ -287,8 +287,8 @@ export default class Task {
         }
     }
 
-    async hash(img_path) {
-        return createHash('md5').update(await fsp.readFile(path.resolve(this.tmp_dir, img_path))).digest('hex');
+    async hash(img_name) {
+        return createHash('md5').update(await fsp.readFile(path.resolve(this.tmp_dir, img_name))).digest('hex');
     }
 
     async download(md) {
@@ -303,8 +303,6 @@ export default class Task {
             }).createReadStream(),
             fs.createWriteStream(tmp_path)
         );
-
-        md.FileName = tmp_path;
 
         return tmp_path;
     }
