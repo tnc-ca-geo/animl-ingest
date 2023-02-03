@@ -172,7 +172,7 @@ export default class Task {
         const Bucket = md['ArchiveBucket'];
         const parse = path.parse('FileName');
         const archive_filename = parse.base + '_' + md['Hash'] + parse.ext;
-        const Key = path.join(md['SerialNumber'], archive_filename);
+        const Key = path.join(String(md['SerialNumber']), archive_filename);
 
         console.log(`Transferring s3://${Bucket}/${Key}`);
         const s3 = new AWS.S3({ region });
