@@ -172,7 +172,7 @@ export default class Task {
         const Bucket = md['ArchiveBucket'];
         const parse = path.parse('FileName');
         const archive_filename = parse.base + '_' + md['Hash'] + parse.ext;
-        const Key = os.path.join(md['SerialNumber'], archive_filename);
+        const Key = path.join(md['SerialNumber'], archive_filename);
 
         console.log(`Transferring s3://${Bucket}/${Key}`);
         const s3 = new AWS.S3({ region });
@@ -187,7 +187,7 @@ export default class Task {
     }
 
     async resize(md, filename, dims) {
-        const tmp_path = os.path.join(this.tmp_dir, filename);
+        const tmp_path = path.join(this.tmp_dir, filename);
         await sharp(md.FileName)
             .resize(dims[0], dims[1])
             .toFile(tmp_path);
@@ -202,7 +202,7 @@ export default class Task {
         for (const size in this.IMG_SIZES) {
             // create filename and key
             const filename = `${md.Hash}-${size}.${md.FileTypeExtension}`;
-            const Key = os.path.join(size, filename);
+            const Key = path.join(size, filename);
             console.log(`Transferring ${Key} to ${Bucket}`);
 
             if (this.IMG_SIZES[size]) {
