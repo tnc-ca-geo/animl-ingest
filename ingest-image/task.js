@@ -299,8 +299,7 @@ export default class Task {
 
     async download(md) {
         console.log(`Downloading s3://${md.Bucket}/${md.Key}`);
-        const tmpkey = md.Key.replace('/', '').replace(' ', '_');
-        const tmp_path = `${this.tmp_dir}/${tmpkey}`;
+        const tmp_path = `${this.tmp_dir}/${md.FileName}`;
 
         const s3 = new AWS.S3({ region });
         await pipeline(
