@@ -142,7 +142,13 @@ export default class Task {
 
             if (!res.ok) throw new Error(await res.text());
 
-            console.log(await res.json());
+            const json = await res.json();
+
+            if (json.errors.length && json.errors[0].includes('E11000')) {
+                throw new Error('Duplicate_Image');
+            } else if (json.errors.length) {
+                throw new Error(json.errors[0].message);
+            }
 
             await this.copy_to_prod(md);
             await this.copy_to_archive(md);
