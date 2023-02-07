@@ -144,7 +144,7 @@ export default class Task {
 
             const json = await res.json();
 
-            if (json && Array.isArray(json.errors) && json.errors.length && json.errors[0].includes('E11000')) {
+            if (json && Array.isArray(json.errors) && json.errors.length && json.errors[0].message.includes('E11000')) {
                 throw new Error('Duplicate_Image');
             } else if (json && Array.isArray(json.errors) && json.errors.length) {
                 throw new Error(json.errors[0].message);
