@@ -135,5 +135,6 @@ dmypy.json
 # zip files
 *.tar
 *.zip
+test.sh
 
 .DS_Store

@@ -4,15 +4,16 @@ service: animl-ingest
 
 provider:
   name: aws
-  runtime: python3.7
   stage: ${opt:stage, 'dev'}
   region: us-west-2
   profile: animl
 
   ecr:
     images:
-      batch:
+      zip:
         path: ./ingest-zip/
+      image:
+        path: ./ingest-image/
   iam:
     role:
       managedPolicies:
@@ -39,6 +40,13 @@ provider:
           Resource: '*'
         - Effect: Allow
           Action:
+            - 'lambda:GetFunction'
+            - 'lambda:InvokeFunction'
+          Resource:
+            - !Sub arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:exif-api
+            - !Sub arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:exif-api-*
+        - Effect: Allow
+          Action:
             - ssm:GetParameter
             - ssm:GetParameters
           Resource:
@@ -50,12 +58,14 @@ provider:
 
 
 functions:
-  IngestBatch:
+  IngestZip:
     image:
-      name: batch
+      name: zip
+    name: IngestZip-${opt:stage, self:provider.stage, 'dev'}
   IngestImage:
-    name: IngestImageLambdaFunction-${opt:stage, self:provider.stage, 'dev'}
-    handler: ingest-image/handler.handler
+    image:
+      name: image
+    name: IngestImage-${opt:stage, self:provider.stage, 'dev'}
     maximumRetryAttempts: 0
     timeout: 15
     events:
@@ -63,8 +73,6 @@ functions:
           bucket: animl-images-ingestion-${opt:stage, self:provider.stage, 'dev'}
           event: s3:ObjectCreated:*
           existing: true
-    layers:
-      - arn:aws:lambda:${self:provider.region}:445285296882:layer:perl-5-26-runtime:12
 
 resources:
   Resources:
@@ -442,15 +450,3 @@ resources:
           Fn::GetAtt: # grabs cloudfront url
             - CloudfrontDistributionAnimlimagesserving
             - DomainName
-
-custom:
-  pythonRequirements:
-    dockerizePip: true
-    dockerFile: ./ingest-image/Dockerfile
-    useDownloadCache: false
-    useStaticCache: false
-    dockerExtraFiles:
-      - -r /output/exiftool/
-
-plugins:
-  - serverless-python-requirements
