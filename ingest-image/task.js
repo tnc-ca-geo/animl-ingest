@@ -177,7 +177,7 @@ export default class Task {
     async copy_to_archive(md) {
         const Bucket = md['ArchiveBucket'];
         const parse = path.parse(md.FileName);
-        const archive_filename = parse.base + '_' + md['Hash'] + parse.ext;
+        const archive_filename = parse.name + '_' + md['Hash'] + parse.ext;
         const Key = path.join(String(md['SerialNumber']), archive_filename);
 
         console.log(`Transferring s3://${Bucket}/${Key}`);
