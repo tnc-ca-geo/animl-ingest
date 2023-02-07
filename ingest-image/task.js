@@ -140,12 +140,23 @@ export default class Task {
                 })
             });
 
-            if (!res.ok) throw new Error(await res.text());
+            if (!res.ok) {
+                const texterr = await res.text();
+                let jsonerr;
+                try {
+                    jsonerr = JSON.parse(texterr);
+                } catch (err) {
+                    throw new Error(texterr);
+                }
+
+                if (jsonerr.message) throw new Error(jsonerr.message);
+                throw new Error(texterr);
+            }
 
             const json = await res.json();
 
             if (json && Array.isArray(json.errors) && json.errors.length && json.errors[0].message.includes('E11000')) {
-                throw new Error('Duplicate_Image');
+                throw new Error('DUPLICATE_IMAGE');
             } else if (json && Array.isArray(json.errors) && json.errors.length) {
                 throw new Error(json.errors[0].message);
             }
@@ -160,9 +171,8 @@ export default class Task {
 
     async copy_to_dlb(err, md) {
         const Bucket = this.DEADLETTER_BUCKET;
-        const dest_dir = err.message || 'UNKNOWN_ERROR';
 
-        const Key = path.resolve(dest_dir, path.parse(md.FileName).base);
+        const Key = path.join((err.message || 'UNKNOWN_ERROR'), path.parse(md.FileName).base);
         console.log(`Transferring s3://${Bucket}/${Key}`);
 
         const s3 = new AWS.S3({ region });
@@ -339,7 +349,7 @@ if (import.meta.url === `file://${process.argv[1]}`) handler({ Records: [{
             name: 'animl-images-ingestion-dev'
         },
         object: {
-            key: 'batch-d552163c-91cc-4dcf-9d6d-b4c903d60a8c/00462f0fc49f8346c644bef8a98bc8dd.jpg'
+            key: 'test-5165373122.jpg'
         }
     }
 }] });
