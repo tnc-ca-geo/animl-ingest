@@ -134,6 +134,8 @@ resources:
                   Action:
                     - sqs:CreateQueue
                     - sqs:GetQueueAttributes
+                  Resource:
+                    - !Sub "arn:aws:cloudformation:${AWS::Region}:${AWS::AccountId}:${AWS::StackName}-*"
                 - Effect: Allow
                   Action:
                     - cloudformation:CreateStack
@@ -143,13 +145,7 @@ resources:
                     - cloudformation:DescribeStackEvents
                     - cloudformation:DescribeStackResources
                   Resource:
-                    - Fn::Join:
-                        - "-"
-                        - - 'arn:aws:cloudformation:${opt:region}::stack/'
-                          - !Ref "AWS::StackName"
-                          - '-*'
-                  Resource:
-                    - "arn:aws:sqs:${opt:region}::animl-images-ingestion-${opt:stage, self:provider.stage, 'dev'}-*"
+                    - !Sub "arn:aws:cloudformation:${AWS::Region}::stack/${AWS::StackName}-*"
                 - Effect: Allow
                   Action: '*'
                   Resource:

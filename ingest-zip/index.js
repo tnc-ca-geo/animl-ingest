@@ -31,8 +31,9 @@ async function handler() {
     );
 
     const batch = `batch-${crypto.randomUUID()}`;
+    console.log(`ok - generated batch id: ${batch}`)
 
-    await cf.send(new CreateStackCommand({
+    const res = await cf.send(new CreateStackCommand({
         StackName: `${process.env.StackName}-${batch}`,
         TemplateBody: JSON.stringify(Stack),
         Parameters: [{
@@ -40,6 +41,10 @@ async function handler() {
             ParameterValue: batch
         }]
     }));
+
+    console.error(res);
+
+    console.log(`ok - created batch stack`)
 
     const zip = new Zip(path.resolve(os.tmpdir(), 'input.zip'));
 
