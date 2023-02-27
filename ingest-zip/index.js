@@ -5,21 +5,22 @@ import fs from 'fs';
 import { pipeline } from 'stream/promises';
 import {
     S3Client,
+    GetObjectCommand,
     PutObjectCommand,
     DeleteObjectCommand
 } from '@aws-sdk/client-s3';
 import Zip from 'adm-zip';
 
 async function handler() {
-    const s3 = new new S3Client({ region: process.env.AWS_DEFAULT_REGION || 'us-east-1' });
+    const s3 = new S3Client({ region: process.env.AWS_DEFAULT_REGION || 'us-east-1' });
 
     const task = JSON.parse(process.env.TASK);
 
     await pipeline(
-        (await s3.send(GetObjectCommand({
+        (await s3.send(new GetObjectCommand({
             Bucket: task.Bucket,
             Key: task.Key
-        }))).Body
+        }))).Body,
         fs.createWriteStream(path.resolve(os.tmpdir(), 'input.zip'))
     );
 
@@ -34,14 +35,14 @@ async function handler() {
         const key = crypto.createHash('md5').update(data).digest('hex');
 
         console.log(`ok - writing: ${batch}/${key}${ext}`);
-        await s3.send(PutObjectCommand({
+        await s3.send(new PutObjectCommand({
             Bucket: task.Bucket,
             Key: `${batch}/${key}${ext}`,
             Body: data
         }));
     }
 
-    await s3.send(DeleteObjectCommand({
+    await s3.send(new DeleteObjectCommand({
         Bucket: task.Bucket,
         Key: task.Key
     }));
