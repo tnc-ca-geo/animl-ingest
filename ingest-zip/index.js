@@ -9,10 +9,16 @@ import {
     PutObjectCommand,
     DeleteObjectCommand
 } from '@aws-sdk/client-s3';
+import {
+    CloudFormationClient,
+    CreateStackCommand,
+} from '@aws-sdk/client-cloudformation';
 import Zip from 'adm-zip';
+import Stack from './lib/stack.js';
 
 async function handler() {
     const s3 = new S3Client({ region: process.env.AWS_DEFAULT_REGION || 'us-east-1' });
+    const cf = new CloudFormationClient({ region: process.env.AWS_DEFAULT_REGION || 'us-east-1' });
 
     const task = JSON.parse(process.env.TASK);
 
@@ -25,6 +31,10 @@ async function handler() {
     );
 
     const batch = `batch-${crypto.randomUUID()}`;
+
+    await cf.send(new CreateStackCommand({
+        TemplateBody: JSON.stringify(Stack)
+    });
 
     const zip = new Zip(path.resolve(os.tmpdir(), 'input.zip'));
 
