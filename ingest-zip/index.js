@@ -33,6 +33,7 @@ async function handler() {
     const batch = `batch-${crypto.randomUUID()}`;
 
     await cf.send(new CreateStackCommand({
+        StackName: `${process.env.StackName}-${batch}`,
         TemplateBody: JSON.stringify(Stack)
     });
 
