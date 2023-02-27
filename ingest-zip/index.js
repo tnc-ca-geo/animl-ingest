@@ -1,21 +1,25 @@
 import crypto from 'crypto';
 import os from 'os';
 import path from 'path';
-import AWS from 'aws-sdk';
 import fs from 'fs';
 import { pipeline } from 'stream/promises';
+import {
+    S3Client,
+    PutObjectCommand,
+    DeleteObjectCommand
+} from '@aws-sdk/client-s3';
 import Zip from 'adm-zip';
 
-const s3 = new AWS.S3({ region: process.env.AWS_DEFAULT_REGION || 'us-east-1' });
-
 async function handler() {
+    const s3 = new new S3Client({ region: process.env.AWS_DEFAULT_REGION || 'us-east-1' });
+
     const task = JSON.parse(process.env.TASK);
 
     await pipeline(
-        s3.getObject({
+        (await s3.send(GetObjectCommand({
             Bucket: task.Bucket,
             Key: task.Key
-        }).createReadStream(),
+        }))).Body
         fs.createWriteStream(path.resolve(os.tmpdir(), 'input.zip'))
     );
 
@@ -30,17 +34,17 @@ async function handler() {
         const key = crypto.createHash('md5').update(data).digest('hex');
 
         console.log(`ok - writing: ${batch}/${key}${ext}`);
-        await s3.putObject({
+        await s3.send(PutObjectCommand({
             Bucket: task.Bucket,
             Key: `${batch}/${key}${ext}`,
             Body: data
-        }).promise();
+        }));
     }
 
-    await s3.deleteObject({
+    await s3.send(DeleteObjectCommand({
         Bucket: task.Bucket,
         Key: task.Key
-    }).promise();
+    }));
 
     console.log('ok - extraction complete');
 }

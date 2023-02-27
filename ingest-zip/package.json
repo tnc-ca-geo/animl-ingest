@@ -13,8 +13,8 @@
     "author": "Nick Ingalls <nick@ingalls.ca>",
     "license": "ISC",
     "dependencies": {
-        "adm-zip": "^0.5.10",
-        "aws-sdk": "^2.1281.0"
+        "@aws-sdk/client-s3": "^3.279.0",
+        "adm-zip": "^0.5.10"
     },
     "devDependencies": {
         "eslint": "^8.30.0",
