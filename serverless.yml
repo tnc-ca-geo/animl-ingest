@@ -127,18 +127,38 @@ resources:
             PolicyDocument:
               Statement:
                 - Effect: Allow
-                  Resource: '*'
                   Action:
                     - batch:DescribeJobs
+                  Resource: '*'
                 - Effect: Allow
+                  Action:
+                    - sqs:CreateQueue
+                    - sqs:GetQueueAttributes
+                - Effect: Allow
+                  Action:
+                    - cloudformation:CreateStack
+                    - cloudformation:DeleteStack
+                    - cloudformation:ListStacks
+                    - cloudformation:DescribeStacks
+                    - cloudformation:DescribeStackEvents
+                    - cloudformation:DescribeStackResources
+                  Resource:
+                    - Fn::Join:
+                        - "-"
+                        - - 'arn:aws:cloudformation:${opt:region}::stack/'
+                          - !Ref "AWS::StackName"
+                          - '-*'
+                  Resource:
+                    - "arn:aws:sqs:${opt:region}::animl-images-ingestion-${opt:stage, self:provider.stage, 'dev'}-*"
+                - Effect: Allow
+                  Action: '*'
                   Resource:
                     - "arn:aws:s3:::animl-images-ingestion-${opt:stage, self:provider.stage, 'dev'}/*"
                     - "arn:aws:s3:::animl-images-ingestion-${opt:stage, self:provider.stage, 'dev'}"
-                  Action: '*'
                 - Effect: Allow
-                  Resource: '*'
                   Action:
                     - ecs:DescribeContainerInstances
+                  Resource: '*'
 
     BatchComputeEnvironment:
       Type: AWS::Batch::ComputeEnvironment
