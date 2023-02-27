@@ -11,7 +11,7 @@ import {
 } from '@aws-sdk/client-s3';
 import {
     CloudFormationClient,
-    CreateStackCommand,
+    CreateStackCommand
 } from '@aws-sdk/client-cloudformation';
 import Zip from 'adm-zip';
 import Stack from './lib/stack.js';
@@ -34,8 +34,12 @@ async function handler() {
 
     await cf.send(new CreateStackCommand({
         StackName: `${process.env.StackName}-${batch}`,
-        TemplateBody: JSON.stringify(Stack)
-    });
+        TemplateBody: JSON.stringify(Stack),
+        Parameters: [{
+            ParameterKey: 'BatchID',
+            ParameterValue: batch
+        }]
+    }));
 
     const zip = new Zip(path.resolve(os.tmpdir(), 'input.zip'));
 
