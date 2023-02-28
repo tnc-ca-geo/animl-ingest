@@ -132,20 +132,23 @@ resources:
                   Resource: '*'
                 - Effect: Allow
                   Action:
-                    - sqs:CreateQueue
-                    - sqs:GetQueueAttributes
+                    - sqs:*
                   Resource:
-                    - !Sub "arn:aws:cloudformation:${AWS::Region}:${AWS::AccountId}:${AWS::StackName}-*"
+                    - !Sub "arn:aws:sqs:${AWS::Region}:${AWS::AccountId}:${AWS::StackName}-*"
                 - Effect: Allow
                   Action:
                     - cloudformation:CreateStack
+                  Resource:
+                    - !Sub "arn:aws:cloudformation:${AWS::Region}:${AWS::AccountId}:stack/*"
+                - Effect: Allow
+                  Action:
                     - cloudformation:DeleteStack
                     - cloudformation:ListStacks
                     - cloudformation:DescribeStacks
                     - cloudformation:DescribeStackEvents
                     - cloudformation:DescribeStackResources
                   Resource:
-                    - !Sub "arn:aws:cloudformation:${AWS::Region}::stack/${AWS::StackName}-*"
+                    - !Sub "arn:aws:cloudformation:${AWS::Region}:${AWS::AccountId}:stack/${AWS::StackName}-*"
                 - Effect: Allow
                   Action: '*'
                   Resource:
@@ -216,7 +219,7 @@ resources:
               - BatchJobRole
               - Arn
           ReadonlyRootFilesystem: false
-          Image: !Sub "${AWS::AccountId}.dkr.ecr.${AWS::Region}.amazonaws.com/serverless-animl-ingest-dev:batch"
+          Image: !Sub "${AWS::AccountId}.dkr.ecr.${AWS::Region}.amazonaws.com/serverless-animl-ingest-dev:zip"
 
     BatchExecRole:
       Type: AWS::IAM::Role
