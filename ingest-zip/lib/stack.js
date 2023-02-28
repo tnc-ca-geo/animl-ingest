@@ -44,7 +44,7 @@ export default class Stack {
                         DatapointsToAlarm: 10,
                         Threshold: 0,
                         ComparisonOperator: 'LessThanOrEqualToThreshold',
-                        TreatMissingData: 'missing',
+                        TreatMissingData: 'breaching',
                         Metrics: [{
                             Id: 'total',
                             Label: 'TotalSQS',
