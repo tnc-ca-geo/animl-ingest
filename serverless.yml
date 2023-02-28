@@ -88,13 +88,22 @@ resources:
     # AWS Resources naming conventions in Serverless (for reference):
     # https://www.serverless.com/framework/docs/providers/aws/guide/resources/
 
-    BatchZipNotifyDeleteSQS:
+    BatchZipNotifyDeleteSNS:
       Type: AWS::SNS::Topic
       Properties:
         TopicName: !Sub ${AWS::StackName}-delete
         Subscription:
           - Protocol: lambda
             Endpoint: !Sub arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:IngestDelete-${opt:stage, self:provider.stage, 'dev'}
+
+    BatchZipNotifyDeleteSNSInvokePermission:
+      Type: AWS::Lambda::Permission
+      Properties:
+        Action: lambda:InvokeFunction
+        Principal: sns.amazonaws.com
+        SourceArn:  !Ref BatchZipNotifyDeleteSNS
+        FunctionName: !Sub IngestDelete-${opt:stage, self:provider.stage, 'dev'}
+
     BatchZipIngestQueue:
       Type: AWS::Batch::JobQueue
       Properties:
