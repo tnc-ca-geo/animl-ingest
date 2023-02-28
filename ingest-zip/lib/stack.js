@@ -1,6 +1,6 @@
 import cf from '@openaddresses/cloudfriend';
 
-export default {
+export default class Stack {
     static generate(parent) {
         return {
             AWSTemplateFormatVersion : '2010-09-09',
