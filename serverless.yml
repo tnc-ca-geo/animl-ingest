@@ -14,6 +14,8 @@ provider:
         path: ./ingest-zip/
       image:
         path: ./ingest-image/
+      delete:
+        path: ./ingest-delete/
   iam:
     role:
       managedPolicies:
@@ -62,6 +64,10 @@ functions:
     image:
       name: zip
     name: IngestZip-${opt:stage, self:provider.stage, 'dev'}
+  IngestDelete:
+    image:
+      name: delete
+    name: IngestDelete-${opt:stage, self:provider.stage, 'dev'}
   IngestImage:
     image:
       name: image
@@ -82,6 +88,13 @@ resources:
     # AWS Resources naming conventions in Serverless (for reference):
     # https://www.serverless.com/framework/docs/providers/aws/guide/resources/
 
+    BatchZipNotifyDeleteSQS:
+      Type: AWS::SNS::Topic
+      Properties:
+        TopicName: !Sub ${AWS::StackName}-delete
+        Subscription:
+          - Protocol: lambda
+            Endpoint: !Sub arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:IngestDelete-${opt:stage, self:provider.stage, 'dev'}
     BatchZipIngestQueue:
       Type: AWS::Batch::JobQueue
       Properties:
