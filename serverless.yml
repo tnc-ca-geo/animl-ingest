@@ -155,6 +155,18 @@ resources:
                     - !Sub "arn:aws:cloudformation:${AWS::Region}:${AWS::AccountId}:stack/*"
                 - Effect: Allow
                   Action:
+                    - cloudwatch:DescribeAlarms
+                  Resource:
+                    - !Sub "arn:aws:cloudwatch:${AWS::Region}:${AWS::AccountId}:alarm:*"
+                - Effect: Allow
+                  Action:
+                    - cloudwatch:DeleteAlarms
+                    - cloudwatch:PutMetricAlarm
+                    - cloudwatch:SetAlarmState
+                  Resource:
+                    - !Sub 'arn:aws:cloudwatch:${AWS::Region}:${AWS::AccountId}:alarm:${AWS::StackName}-*'
+                - Effect: Allow
+                  Action:
                     - cloudformation:DeleteStack
                     - cloudformation:ListStacks
                     - cloudformation:DescribeStacks

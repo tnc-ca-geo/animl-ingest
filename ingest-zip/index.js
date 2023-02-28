@@ -3,27 +3,19 @@ import os from 'os';
 import path from 'path';
 import fs from 'fs';
 import { pipeline } from 'stream/promises';
-import {
-    S3Client,
-    GetObjectCommand,
-    PutObjectCommand,
-    DeleteObjectCommand
-} from '@aws-sdk/client-s3';
-import {
-    CloudFormationClient,
-    CreateStackCommand
-} from '@aws-sdk/client-cloudformation';
+import S3 from '@aws-sdk/client-s3';
+import CloudFormation from '@aws-sdk/client-cloudformation';
 import Zip from 'adm-zip';
 import Stack from './lib/stack.js';
 
 async function handler() {
-    const s3 = new S3Client({ region: process.env.AWS_DEFAULT_REGION || 'us-east-1' });
-    const cf = new CloudFormationClient({ region: process.env.AWS_DEFAULT_REGION || 'us-east-1' });
+    const s3 = new S3.S3Client({ region: process.env.AWS_DEFAULT_REGION || 'us-east-1' });
+    const cf = new CloudFormation.CloudFormationClient({ region: process.env.AWS_DEFAULT_REGION || 'us-east-1' });
 
     const task = JSON.parse(process.env.TASK);
 
     await pipeline(
-        (await s3.send(new GetObjectCommand({
+        (await s3.send(new S3.GetObjectCommand({
             Bucket: task.Bucket,
             Key: task.Key
         }))).Body,
@@ -31,20 +23,18 @@ async function handler() {
     );
 
     const batch = `batch-${crypto.randomUUID()}`;
-    console.log(`ok - generated batch id: ${batch}`)
+    console.log(`ok - generated batch id: ${batch}`);
 
-    const res = await cf.send(new CreateStackCommand({
+    await cf.send(new CloudFormation.CreateStackCommand({
         StackName: `${process.env.StackName}-${batch}`,
-        TemplateBody: JSON.stringify(Stack),
+        TemplateBody: JSON.stringify(Stack.generate(process.env.StackName)),
         Parameters: [{
             ParameterKey: 'BatchID',
             ParameterValue: batch
         }]
     }));
 
-    console.error(res);
-
-    console.log(`ok - created batch stack`)
+    console.log('ok - created batch stack');
 
     const zip = new Zip(path.resolve(os.tmpdir(), 'input.zip'));
 
@@ -55,14 +45,14 @@ async function handler() {
         const key = crypto.createHash('md5').update(data).digest('hex');
 
         console.log(`ok - writing: ${batch}/${key}${ext}`);
-        await s3.send(new PutObjectCommand({
+        await s3.send(new S3.PutObjectCommand({
             Bucket: task.Bucket,
             Key: `${batch}/${key}${ext}`,
             Body: data
         }));
     }
 
-    await s3.send(new DeleteObjectCommand({
+    await s3.send(new S3.DeleteObjectCommand({
         Bucket: task.Bucket,
         Key: task.Key
     }));
