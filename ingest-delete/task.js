@@ -1,6 +1,6 @@
 import CloudFormation from '@aws-sdk/client-cloudformation';
 
-export default async function handler(payload) {
+export async function handler(payload) {
     const cf = new CloudFormation.CloudFormationClient({ region: process.env.AWS_DEFAULT_REGION || 'us-east-1' });
 
     console.error(payload);
