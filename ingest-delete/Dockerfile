@@ -1,10 +1,7 @@
-FROM alpine:3.17
+FROM public.ecr.aws/lambda/nodejs:18
 
-RUN apk add nodejs npm
-
-WORKDIR /usr/local/src/task
-ADD . /usr/local/src/task
+COPY . ${LAMBDA_TASK_ROOT}/
 
 RUN npm install
 
-CMD npm start
+CMD ["task.handler"]

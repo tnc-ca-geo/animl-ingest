@@ -4,11 +4,10 @@
     "type": "module",
     "version": "1.0.0",
     "description": "Tear down Batch Infrastructure once SQS Queues reach 0",
-    "main": "index.js",
+    "main": "task.js",
     "scripts": {
-        "start": "node index.js",
         "test": "echo \"Error: no test specified\" && exit 1",
-        "lint": "eslint index.js"
+        "lint": "eslint task.js"
     },
     "author": "Nick Ingalls <nick@ingalls.ca>",
     "license": "ISC",
