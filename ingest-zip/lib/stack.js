@@ -1,14 +1,18 @@
 import cf from '@openaddresses/cloudfriend';
 
 export default class Stack {
-    static generate(parent) {
+    static generate(parent, bucket, key) {
         return {
             AWSTemplateFormatVersion : '2010-09-09',
             Parameters: {
                 BatchID: {
                     Type: 'String',
                     Description: 'The unique ID of the Batch Task'
-                }
+                },
+                S3URL: {
+                    Type: 'String',
+                    Description: 'The S3 URL of the object that triggered the Batch Task'
+                },
             },
             Resources: {
                 PredQueue: {

@@ -49,6 +49,15 @@ provider:
             - !Sub arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:exif-api-*
         - Effect: Allow
           Action:
+            - cloudformation:DeleteStack
+            - cloudformation:ListStacks
+            - cloudformation:DescribeStacks
+            - cloudformation:DescribeStackEvents
+            - cloudformation:DescribeStackResources
+          Resource:
+            - !Sub "arn:aws:cloudformation:${AWS::Region}:${AWS::AccountId}:stack/${AWS::StackName}-*"
+        - Effect: Allow
+          Action:
             - ssm:GetParameter
             - ssm:GetParameters
           Resource:

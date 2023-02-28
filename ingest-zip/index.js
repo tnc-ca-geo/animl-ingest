@@ -31,6 +31,9 @@ async function handler() {
         Parameters: [{
             ParameterKey: 'BatchID',
             ParameterValue: batch
+        },{
+            ParameterKey: 'S3URL',
+            ParameterValue: `s3://${task.Bucket}/${task.Key}`
         }]
     }));
 
