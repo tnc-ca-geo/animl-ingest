@@ -32,7 +32,7 @@ export default class Stack {
                         QueueName: cf.join([cf.stackName, '-dlq'])
                     }
                 },
-                PredSQSAlarn: {
+                PredSQSAlarm: {
                     Type: 'AWS::CloudWatch::Alarm',
                     Properties: {
                         AlarmName: cf.join([cf.stackName, '-sqs-empty']),
