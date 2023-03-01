@@ -3,11 +3,10 @@ import CloudFormation from '@aws-sdk/client-cloudformation';
 export async function handler(event) {
     const cf = new CloudFormation.CloudFormationClient({ region: process.env.AWS_DEFAULT_REGION || 'us-east-1' });
 
-    console.error(JSON.stringify(event.Records[0].Sns));
-    const batch = event.batch;
+    const alarm = JSON.parse(event.Records[0].Sns.Message).AlarmName;
 
     await cf.send(new CloudFormation.DeleteStackCommand({
-        StackName: `${process.env.StackName}-${batch}`
+        StackName: alarm.replace('-sqs-empty', '')
     }));
 
     console.log('ok - stack deletion complete');
