@@ -7,18 +7,20 @@
     "main": "index.js",
     "scripts": {
         "start": "node index.js",
-        "test": "echo \"Error: no test specified\" && exit 1",
+        "test": "tape test/*.test.js",
         "lint": "eslint index.js"
     },
     "author": "Nick Ingalls <nick@ingalls.ca>",
     "license": "ISC",
     "dependencies": {
-        "@openaddresses/cloudfriend": "^7.0.0",
         "@aws-sdk/client-cloudformation": "^3.279.0",
         "@aws-sdk/client-s3": "^3.279.0",
-        "adm-zip": "^0.5.10"
+        "@openaddresses/cloudfriend": "^7.0.0",
+        "adm-zip": "^0.5.10",
+        "tape": "^5.6.3"
     },
     "devDependencies": {
+        "sinon": "^15.0.1",
         "eslint": "^8.30.0",
         "eslint-plugin-node": "^11.1.0"
     }

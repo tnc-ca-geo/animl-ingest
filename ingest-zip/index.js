@@ -8,7 +8,7 @@ import CloudFormation from '@aws-sdk/client-cloudformation';
 import Zip from 'adm-zip';
 import Stack from './lib/stack.js';
 
-async function handler() {
+export default async function handler() {
     const s3 = new S3.S3Client({ region: process.env.AWS_DEFAULT_REGION || 'us-east-1' });
     const cf = new CloudFormation.CloudFormationClient({ region: process.env.AWS_DEFAULT_REGION || 'us-east-1' });
 
@@ -43,6 +43,8 @@ async function handler() {
 
     for (const entry of zip.getEntries()) {
         const { ext } = path.parse(entry.entryName);
+        if (!ext) continue;
+
         const data = entry.getData();
         // Ensure if there are images with the same name they don't clobber on s3
         const key = crypto.createHash('md5').update(data).digest('hex');

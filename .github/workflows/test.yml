@@ -29,4 +29,5 @@ jobs:
           cd ${{ matrix.task }}
           npm install
           npm run lint
+          npm run test
 

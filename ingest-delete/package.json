@@ -6,7 +6,7 @@
     "description": "Tear down Batch Infrastructure once SQS Queues reach 0",
     "main": "task.js",
     "scripts": {
-        "test": "echo \"Error: no test specified\" && exit 1",
+        "test": "echo \"Error: no test specified\" && exit 0",
         "lint": "eslint task.js"
     },
     "author": "Nick Ingalls <nick@ingalls.ca>",
