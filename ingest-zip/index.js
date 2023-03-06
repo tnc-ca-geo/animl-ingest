@@ -24,7 +24,7 @@ export default async function handler() {
     params.set(`/api/url-${process.env.STAGE}`, 'ANIML_API_URL');
 
     for (const param of (await ssm.send(new SSM.GetParametersCommand({
-        Names: Array.from(SSM.keys()),
+        Names: Array.from(params.keys()),
         WithDecryption: true
     }))).Parameters) {
         params.set(param.Name, param.Value);

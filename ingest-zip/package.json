@@ -15,13 +15,14 @@
     "dependencies": {
         "@aws-sdk/client-cloudformation": "^3.279.0",
         "@aws-sdk/client-s3": "^3.279.0",
+        "@aws-sdk/client-ssm": "^3.282.0",
         "@openaddresses/cloudfriend": "^7.0.0",
         "adm-zip": "^0.5.10",
         "tape": "^5.6.3"
     },
     "devDependencies": {
-        "sinon": "^15.0.1",
         "eslint": "^8.30.0",
-        "eslint-plugin-node": "^11.1.0"
+        "eslint-plugin-node": "^11.1.0",
+        "sinon": "^15.0.1"
     }
 }
