@@ -69,7 +69,7 @@ export default async function handler() {
             query: QUERY,
             variables: {
                 input: {
-                    md: md
+                    processing_start: new Date(),
                 }
             }
         })
@@ -90,9 +90,7 @@ export default async function handler() {
 
     const json = await res.json();
 
-    if (json && Array.isArray(json.errors) && json.errors.length && json.errors[0].message.includes('E11000')) {
-        throw new Error('DUPLICATE_IMAGE');
-    } else if (json && Array.isArray(json.errors) && json.errors.length) {
+    if (json && Array.isArray(json.errors) && json.errors.length) {
         throw new Error(json.errors[0].message);
     }
 
