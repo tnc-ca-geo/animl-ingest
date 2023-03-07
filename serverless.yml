@@ -211,6 +211,12 @@ resources:
                   Action:
                     - ecs:DescribeContainerInstances
                   Resource: '*'
+                - Effect: Allow
+                  Action:
+                    - ssm:GetParameter
+                    - ssm:GetParameters
+                  Resource:
+                    - !Sub arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter/*
 
     BatchComputeEnvironment:
       Type: AWS::Batch::ComputeEnvironment
@@ -258,6 +264,8 @@ resources:
           Environment:
             - Name: 'StackName'
               Value: !Ref "AWS::StackName"
+            - Name: 'APIKEY'
+              Value: '{{resolve:secretsmanager:api-key-${self:provider.stage}:SecretString:apikey}}'
           ResourceRequirements:
             - Type: 'VCPU'
               Value: 1

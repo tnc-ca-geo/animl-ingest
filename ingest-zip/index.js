@@ -11,7 +11,13 @@ import Stack from './lib/stack.js';
 
 const APIKEY = process.env.APIKEY;
 const QUERY = `
-    mutation CreateBatch($input: CreateBatch!){
+    mutation CreateBatchRecord($input: CreateBatchInput!){
+        createBatch(input: $input) {
+            batch {
+                _id
+                processing_start
+            }
+        }
     }
 `;
 
@@ -20,13 +26,14 @@ export default async function handler() {
     const cf = new CloudFormation.CloudFormationClient({ region: process.env.AWS_DEFAULT_REGION || 'us-east-1' });
     const ssm = new SSM.SSMClient({ region: process.env.AWS_DEFAULT_REGION || 'us-east-1' });
 
-    const params = new Map();
-    params.set(`/api/url-${process.env.STAGE}`, 'ANIML_API_URL');
+    const STAGE = process.env.STAGE || 'dev';
 
+    const params = new Map();
     for (const param of (await ssm.send(new SSM.GetParametersCommand({
-        Names: Array.from(params.keys()),
+        Names: [`/api/url-${STAGE}`],
         WithDecryption: true
     }))).Parameters) {
+        console.log(`ok - setting ${param.Name}`);
         params.set(param.Name, param.Value);
     }
 
@@ -57,9 +64,8 @@ export default async function handler() {
 
     console.log('ok - created batch stack');
 
-    console.log(`Posting metadata to API: ${md}`);
-
-    const res = await fetch(params.get(`/api/url-${process.env.STAGE}`), {
+    console.log('Posting metadata to API');
+    const res = await fetch(params.get(`/api/url-${STAGE}`), {
         method: 'POST',
         headers: {
             'Content-Type': 'application/json',
@@ -69,7 +75,8 @@ export default async function handler() {
             query: QUERY,
             variables: {
                 input: {
-                    processing_start: new Date(),
+                    _id: batch,
+                    processing_start: new Date()
                 }
             }
         })
