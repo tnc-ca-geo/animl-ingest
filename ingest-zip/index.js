@@ -54,7 +54,7 @@ export default async function handler() {
 
     console.log('ok - created batch stack');
 
-    await fetcher({
+    await fetcher(params.get(`/api/url-${STAGE}`), {
         body: JSON.stringify({
             query: `
                 mutation CreateBatch($input: CreateBatchInput!){
@@ -73,7 +73,7 @@ export default async function handler() {
                 }
             }
         })
-    })
+    });
 
     const zip = new Zip(path.resolve(os.tmpdir(), 'input.zip'));
 
@@ -95,7 +95,7 @@ export default async function handler() {
         total++;
     }
 
-    await fetcher({
+    await fetcher(params.get(`/api/url-${STAGE}`), {
         body: JSON.stringify({
             query: `
                 mutation CreateBatch($input: CreateBatchInput!){
@@ -114,7 +114,7 @@ export default async function handler() {
                 }
             }
         })
-    })
+    });
 
     await s3.send(new S3.DeleteObjectCommand({
         Bucket: task.Bucket,
@@ -124,9 +124,9 @@ export default async function handler() {
     console.log('ok - extraction complete');
 }
 
-async function fetcher(body) {
+async function fetcher(url, body) {
     console.log('Posting metadata to API');
-    const res = await fetch(params.get(`/api/url-${STAGE}`), {
+    const res = await fetch(url, {
         method: 'POST',
         headers: {
             'Content-Type': 'application/json',
