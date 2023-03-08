@@ -55,24 +55,22 @@ export default async function handler() {
     console.log('ok - created batch stack');
 
     await fetcher(params.get(`/api/url-${STAGE}`), {
-        body: JSON.stringify({
-            query: `
-                mutation CreateBatch($input: CreateBatchInput!){
-                    createBatch(input: $input) {
-                        batch {
-                            _id
-                            processingStart
-                        }
+        query: `
+            mutation CreateBatch($input: CreateBatchInput!) {
+                createBatch(input: $input) {
+                    batch {
+                        _id
+                        processingStart
                     }
                 }
-            `,
-            variables: {
-                input: {
-                    _id: batch,
-                    processingStart: new Date()
-                }
             }
-        })
+        `,
+        variables: {
+            input: {
+                _id: batch,
+                processingStart: new Date()
+            }
+        }
     });
 
     const zip = new Zip(path.resolve(os.tmpdir(), 'input.zip'));
@@ -96,24 +94,22 @@ export default async function handler() {
     }
 
     await fetcher(params.get(`/api/url-${STAGE}`), {
-        body: JSON.stringify({
-            query: `
-                mutation CreateBatch($input: CreateBatchInput!){
-                    updateBatch(input: $input) {
-                        batch {
-                            _id
-                            total
-                        }
+        query: `
+            mutation CreateBatch($input: CreateBatchInput!){
+                updateBatch(input: $input) {
+                    batch {
+                        _id
+                        total
                     }
                 }
-            `,
-            variables: {
-                input: {
-                    _id: batch,
-                    total
-                }
             }
-        })
+        `,
+        variables: {
+            input: {
+                _id: batch,
+                total
+            }
+        }
     });
 
     await s3.send(new S3.DeleteObjectCommand({
@@ -132,7 +128,7 @@ async function fetcher(url, body) {
             'Content-Type': 'application/json',
             'x-api-key': APIKEY
         },
-        body
+        body: JSON.stringify(body)
     });
 
     if (!res.ok) {
