@@ -12,7 +12,8 @@
     "author": "Nick Ingalls <nick@ingalls.ca>",
     "license": "ISC",
     "dependencies": {
-        "@aws-sdk/client-cloudformation": "^3.279.0"
+        "@aws-sdk/client-cloudformation": "^3.279.0",
+        "@aws-sdk/client-ssm": "^3.282.0"
     },
     "devDependencies": {
         "eslint": "^8.30.0",
