@@ -3,10 +3,25 @@ import Sinon from 'sinon';
 import IngestZip from '../index.js';
 import S3 from '@aws-sdk/client-s3';
 import CloudFormation from '@aws-sdk/client-cloudformation';
+import { MockAgent, setGlobalDispatcher } from 'undici';
 import SSM from '@aws-sdk/client-ssm';
 import fs from 'node:fs';
 
 test('Basic', async (t) => {
+    const mockAgent = new MockAgent();
+    setGlobalDispatcher(mockAgent);
+
+    const mockPool = mockAgent.get('http://example.com');
+
+    mockPool.intercept({
+        path: '/',
+        method: 'POST'
+    }).reply(200, { message: 'posted' });
+    mockPool.intercept({
+        path: '/',
+        method: 'POST'
+    }).reply(200, { message: 'posted' });
+
     const order = [];
     Sinon.stub(SSM.SSMClient.prototype, 'send').callsFake((command) => {
         if (command instanceof SSM.GetParametersCommand) {
@@ -19,8 +34,8 @@ test('Basic', async (t) => {
 
             return Promise.resolve({
                 Parameters: [{
-                    ParamaterKey: '/api/url-test',
-                    ParameterValue: 'http://example.com'
+                    Name: '/api/url-test',
+                    Value: 'http://example.com'
                 }]
             });
         } else {
@@ -41,7 +56,7 @@ test('Basic', async (t) => {
                 Body: fs.createReadStream(new URL('./fixtures/test.zip', import.meta.url))
             });
         } else if (command instanceof S3.PutObjectCommand) {
-            order.push(`S3:PutObjectCommand`);
+            order.push('S3:PutObjectCommand');
 
             t.equals(command.input.Bucket, 'example-bucket');
 
@@ -90,7 +105,7 @@ test('Basic', async (t) => {
         'S3:PutObjectCommand',
         'S3:PutObjectCommand',
         'S3:PutObjectCommand',
-        'S3:DeleteObjectCommand:example-key',
+        'S3:DeleteObjectCommand:example-key'
     ]);
 
     Sinon.restore();
