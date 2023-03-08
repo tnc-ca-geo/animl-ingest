@@ -75,6 +75,12 @@ export default class Task {
                 console.log(`New file detected in ${md.Bucket}: ${md.Key}`);
                 md.FileName = `${path.parse(md.Key).name}${path.parse(md.Key).ext.toLowerCase()}`;
 
+                if (md.Key.match(/^batch-(\b[0-9a-f]{8}\b-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-\b[0-9a-f]{12}\b)/)) {
+                    md.batchId = md.Key.match(/^batch-(\b[0-9a-f]{8}\b-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-\b[0-9a-f]{12}\b)/)[1];
+                } else {
+                    md.batchId = null;
+                }
+
                 const ingest_type = task.validate(md.FileName);
 
                 if (ingest_type === IngestType.IMAGE) {
