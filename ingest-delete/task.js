@@ -26,7 +26,7 @@ export async function handler(event) {
 
     await cf.send(new CloudFormation.DeleteStackCommand({ StackName }));
 
-    const batchId = StackName.replace(/^.*-batch-/, '');
+    const batchId = `batch-${StackName.replace(/^.*-batch-/, '')}`;
 
     console.log(`ok - batch: ${batchId}`);
 
