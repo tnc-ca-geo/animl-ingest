@@ -95,7 +95,7 @@ export default async function handler() {
 
     await fetcher(params.get(`/api/url-${STAGE}`), {
         query: `
-            mutation CreateBatch($input: CreateBatchInput!){
+            mutation UpdateBatch($input: UpdateBatchInput!){
                 updateBatch(input: $input) {
                     batch {
                         _id
@@ -107,7 +107,7 @@ export default async function handler() {
         variables: {
             input: {
                 _id: batch,
-                total
+                total: total
             }
         }
     });
@@ -121,7 +121,7 @@ export default async function handler() {
 }
 
 async function fetcher(url, body) {
-    console.log('Posting metadata to API');
+    console.log('Posting metadata to API', JSON.stringify(body));
     const res = await fetch(url, {
         method: 'POST',
         headers: {
