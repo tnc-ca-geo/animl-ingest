@@ -3,7 +3,7 @@ import SSM from '@aws-sdk/client-ssm';
 
 const APIKEY = process.env.APIKEY;
 
-export default async function handler(event) {
+export async function handler(event) {
     const cf = new CloudFormation.CloudFormationClient({ region: process.env.AWS_DEFAULT_REGION || 'us-east-1' });
     const ssm = new SSM.SSMClient({ region: process.env.AWS_DEFAULT_REGION || 'us-east-1' });
 

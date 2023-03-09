@@ -1,6 +1,6 @@
 import test from 'tape';
 import Sinon from 'sinon';
-import IngestDelete from '../task.js';
+import { handler as IngestDelete } from '../task.js';
 import CloudFormation from '@aws-sdk/client-cloudformation';
 import { MockAgent, setGlobalDispatcher } from 'undici';
 import SSM from '@aws-sdk/client-ssm';
