@@ -34,6 +34,10 @@ export default class Stack {
                 },
                 PredSQSAlarm: {
                     Type: 'AWS::CloudWatch::Alarm',
+                    DependsOn: [
+                        'PredQueue',
+                        'PredDLQ'
+                    ],
                     Properties: {
                         AlarmName: cf.join([cf.stackName, '-sqs-empty']),
                         AlarmDescription: 'Set an alarm to breach when SQS list is at 0',
