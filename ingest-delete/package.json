@@ -6,8 +6,8 @@
     "description": "Tear down Batch Infrastructure once SQS Queues reach 0",
     "main": "task.js",
     "scripts": {
-        "test": "echo \"Error: no test specified\" && exit 0",
-        "lint": "eslint task.js"
+        "test": "tape test/*.test.js",
+        "lint": "eslint task.js test/*.js"
     },
     "author": "Nick Ingalls <nick@ingalls.ca>",
     "license": "ISC",
@@ -17,6 +17,9 @@
     },
     "devDependencies": {
         "eslint": "^8.30.0",
-        "eslint-plugin-node": "^11.1.0"
+        "eslint-plugin-node": "^11.1.0",
+        "sinon": "^15.0.1",
+        "tape": "^5.6.3",
+        "undici": "^5.20.0"
     }
 }
