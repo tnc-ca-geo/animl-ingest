@@ -52,7 +52,7 @@ export default class Stack {
                         DatapointsToAlarm: 10,
                         Threshold: 0,
                         ComparisonOperator: 'LessThanOrEqualToThreshold',
-                        TreatMissingData: 'breaching',
+                        TreatMissingData: 'missing',
                         Metrics: [{
                             Id: 'total',
                             Label: 'TotalSQS',
