@@ -273,7 +273,7 @@ export default class Task {
             })
         }));
 
-        return JSON.parse(JSON.parse(data.Payload).body);
+        return JSON.parse(JSON.parse(new TextDecoder().decode(data.Payload)).body);
     }
 
     convert_datetime_to_ISO(date_time_exif, format = this.EXIF_DATE_TIME_FORMAT) {
