@@ -131,7 +131,7 @@ export default class Task {
     }
 
     async save_image(md) {
-        console.log(`Posting metadata to API: ${md}`);
+        console.log(`Posting metadata to API: ${JSON.stringify(md)}`);
 
         try {
             const res = await fetch(this.ANIML_API_URL, {
