@@ -3,9 +3,11 @@ import os from 'os';
 import path from 'path';
 import fs from 'fs';
 import { pipeline } from 'stream/promises';
+import stream from 'stream';
 import S3 from '@aws-sdk/client-s3';
 import SSM from '@aws-sdk/client-ssm';
 import CloudFormation from '@aws-sdk/client-cloudformation';
+import EventStream from './lib/cfstream.js';
 import Zip from 'adm-zip';
 import Stack from './lib/stack.js';
 
@@ -40,8 +42,9 @@ export default async function handler() {
     const batch = `batch-${crypto.randomUUID()}`;
     console.log(`ok - generated batch id: ${batch}`);
 
+    const StackName = `${process.env.StackName}-${batch}`;
     await cf.send(new CloudFormation.CreateStackCommand({
-        StackName: `${process.env.StackName}-${batch}`,
+        StackName,
         TemplateBody: JSON.stringify(Stack.generate(process.env.StackName)),
         Parameters: [{
             ParameterKey: 'BatchID',
@@ -51,6 +54,8 @@ export default async function handler() {
             ParameterValue: `s3://${task.Bucket}/${task.Key}`
         }]
     }));
+
+    await monitor(StackName)
 
     console.log('ok - created batch stack');
 
@@ -118,6 +123,35 @@ export default async function handler() {
     }));
 
     console.log('ok - extraction complete');
+}
+
+function monitor(StackName) {
+    const region = process.env.AWS_DEFAULT_REGION || 'us-east-1';
+
+    return new Promise((resolve, reject) => {
+        const events = EventStream(StackName, { region })
+            .on('error', (err) => {
+                return reject(err);
+            });
+
+        const stringify = new stream.Transform({ objectMode: true });
+        stringify._transform = (event, enc, cb) => {
+            let msg = event.ResourceStatus + ' ' + event.LogicalResourceId;
+            if (event.ResourceStatusReason) msg += ': ' + event.ResourceStatusReason;
+            cb(null, currentTime() + ' ' + region + ': ' + msg + '\n');
+        };
+
+        events.pipe(stringify).pipe(process.stdout);
+        stringify.on('end', resolve);
+    });
+}
+
+function currentTime() {
+    const now = new Date();
+    const hour = ('00' + now.getUTCHours()).slice(-2);
+    const min = ('00' + now.getUTCMinutes()).slice(-2);
+    const sec = ('00' + now.getUTCSeconds()).slice(-2);
+    return [hour, min, sec].join(':') + 'Z';
 }
 
 async function fetcher(url, body) {
