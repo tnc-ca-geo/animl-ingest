@@ -1,7 +1,7 @@
 import cf from '@openaddresses/cloudfriend';
 
 export default class Stack {
-    static generate(parent, bucket, key) {
+    static generate(parent, task, stage) {
         return {
             AWSTemplateFormatVersion : '2010-09-09',
             Parameters: {
@@ -11,7 +11,8 @@ export default class Stack {
                 },
                 S3URL: {
                     Type: 'String',
-                    Description: 'The S3 URL of the object that triggered the Batch Task'
+                    Description: 'The S3 URL of the object that triggered the Batch Task',
+                    Default: `s3://${task.bucket}/${task.key}`
                 },
             },
             Resources: {
@@ -30,6 +31,15 @@ export default class Stack {
                     Type: 'AWS::SQS::Queue',
                     Properties: {
                         QueueName: cf.join([cf.stackName, '-dlq'])
+                    }
+                },
+                PredInference: {
+                    Type: 'AWS::Lambda::EventSourceMapping',
+                    Properties: {
+                        BatchSize: 1,
+                        Enabled: true,
+                        EventSourceArn: cf.getAtt('PredQueue', 'Arn'),
+                        FunctionName: `animl-api-${STAGE}-inference`
                     }
                 },
                 PredSQSAlarm: {

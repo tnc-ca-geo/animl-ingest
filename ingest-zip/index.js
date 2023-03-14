@@ -45,7 +45,7 @@ export default async function handler() {
     const StackName = `${process.env.StackName}-${batch}`;
     await cf.send(new CloudFormation.CreateStackCommand({
         StackName,
-        TemplateBody: JSON.stringify(Stack.generate(process.env.StackName)),
+        TemplateBody: JSON.stringify(Stack.generate(process.env.StackName, task, STAGE)),
         Parameters: [{
             ParameterKey: 'BatchID',
             ParameterValue: batch
@@ -55,7 +55,7 @@ export default async function handler() {
         }]
     }));
 
-    await monitor(StackName)
+    await monitor(StackName);
 
     console.log('ok - created batch stack');
 
