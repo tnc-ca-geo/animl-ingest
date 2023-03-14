@@ -59,6 +59,11 @@ provider:
             - !Sub arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:exif-api-*
         - Effect: Allow
           Action:
+            - lambda:DeleteEventSourceMapping
+          Resource:
+            - !Sub "arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:animl-api-${opt:stage, self:provider.stage, 'dev'}-inference"
+        - Effect: Allow
+          Action:
             - cloudformation:DeleteStack
             - cloudformation:ListStacks
             - cloudformation:DescribeStacks
@@ -186,6 +191,11 @@ resources:
                     - cloudwatch:DescribeAlarms
                   Resource:
                     - !Sub "arn:aws:cloudwatch:${AWS::Region}:${AWS::AccountId}:alarm:*"
+                - Effect: Allow
+                  Action:
+                    - lambda:CreateEventSourceMapping
+                  Resource:
+                    - !Sub "arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:animl-api-${opt:stage, self:provider.stage, 'dev'}-inference"
                 - Effect: Allow
                   Action:
                     - cloudwatch:DeleteAlarms
