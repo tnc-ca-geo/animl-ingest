@@ -13,7 +13,7 @@ export default class Stack {
                     Type: 'String',
                     Description: 'The S3 URL of the object that triggered the Batch Task',
                     Default: `s3://${task.bucket}/${task.key}`
-                },
+                }
             },
             Resources: {
                 PredQueue: {
@@ -39,7 +39,7 @@ export default class Stack {
                         BatchSize: 1,
                         Enabled: true,
                         EventSourceArn: cf.getAtt('PredQueue', 'Arn'),
-                        FunctionName: `animl-api-${STAGE}-inference`
+                        FunctionName: `animl-api-${stage}-inference`
                     }
                 },
                 PredSQSAlarm: {
@@ -106,9 +106,9 @@ export default class Stack {
                                     Namespace: 'AWS/SQS',
                                     MetricName: 'ApproximateNumberOfMessagesDelayed',
                                     Dimensions: [{
-                                            Name: 'QueueName',
-                                            Value: cf.stackName
-                                        }]
+                                        Name: 'QueueName',
+                                        Value: cf.stackName
+                                    }]
                                 },
                                 Period: 60,
                                 Stat: 'Maximum'
@@ -151,17 +151,17 @@ export default class Stack {
                                     Namespace: 'AWS/SQS',
                                     MetricName: 'ApproximateNumberOfMessagesDelayed',
                                     Dimensions: [{
-                                            Name: 'QueueName',
-                                            Value: cf.join([cf.stackName, '-dlq'])
-                                        }]
+                                        Name: 'QueueName',
+                                        Value: cf.join([cf.stackName, '-dlq'])
+                                    }]
                                 },
                                 Period: 60,
                                 Stat: 'Maximum'
                             }
                         }]
                     }
-                },
+                }
             }
-        }
+        };
     }
 }

@@ -8,7 +8,7 @@
     "scripts": {
         "start": "node index.js",
         "test": "tape test/*.test.js",
-        "lint": "eslint index.js test/*.js"
+        "lint": "eslint index.js lib/*.js test/*.js"
     },
     "author": "Nick Ingalls <nick@ingalls.ca>",
     "license": "ISC",
