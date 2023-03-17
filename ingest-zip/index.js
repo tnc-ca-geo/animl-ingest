@@ -31,6 +31,11 @@ export default async function handler() {
 
     const task = JSON.parse(process.env.TASK);
 
+    const head = await s3.send(new S3.HeadObjectCommand({
+        Bucket: task.Bucket,
+        Key: task.Key
+    }))
+
     await pipeline(
         (await s3.send(new S3.GetObjectCommand({
             Bucket: task.Bucket,
@@ -73,6 +78,7 @@ export default async function handler() {
         variables: {
             input: {
                 _id: batch,
+                eTag: head.ETag,
                 processingStart: new Date()
             }
         }
