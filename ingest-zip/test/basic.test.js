@@ -67,6 +67,12 @@ test('Basic', async (t) => {
             t.equals(command.input.Bucket, 'example-bucket');
 
             return Promise.resolve({});
+        } else if (command instanceof S3.HeadObjectCommand) {
+            order.push(`S3:HeadObjectCommand:${command.input.Key}`);
+
+            t.equals(command.input.Bucket, 'example-bucket');
+
+            return Promise.resolve({});
         } else {
             t.fail('Unexpected Command');
         }
