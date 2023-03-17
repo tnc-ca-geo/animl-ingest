@@ -78,7 +78,7 @@ export default async function handler() {
         variables: {
             input: {
                 _id: batch,
-                eTag: head.ETag,
+                eTag: JSON.parse(head.ETag), // Required to remove double escape by AWS
                 processingStart: new Date()
             }
         }
