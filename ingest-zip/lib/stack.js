@@ -19,7 +19,7 @@ export default class Stack {
                 PredQueue: {
                     Type: 'AWS::SQS::Queue',
                     Properties: {
-                        QueueName: cf.stackName,
+                        QueueName: cf.join([cf.stackName, '.fifo']),
                         VisibilityTimeout: 1200,
                         FifoQueue: true,
                         RedrivePolicy: {
@@ -31,7 +31,8 @@ export default class Stack {
                 PredDLQ: {
                     Type: 'AWS::SQS::Queue',
                     Properties: {
-                        QueueName: cf.join([cf.stackName, '-dlq'])
+                        QueueName: cf.join([cf.stackName, '-dlq.fifo']),
+                        FifoQueue: true,
                     }
                 },
                 PredInference: {
