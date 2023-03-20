@@ -21,6 +21,7 @@ export default class Stack {
                     Properties: {
                         QueueName: cf.stackName,
                         VisibilityTimeout: 1200,
+                        FifoQueue: true,
                         RedrivePolicy: {
                             deadLetterTargetArn: cf.getAtt('PredDLQ', 'Arn'),
                             maxReceiveCount: 3
