@@ -34,7 +34,7 @@ export default async function handler() {
     const head = await s3.send(new S3.HeadObjectCommand({
         Bucket: task.Bucket,
         Key: task.Key
-    }))
+    }));
 
     await pipeline(
         (await s3.send(new S3.GetObjectCommand({

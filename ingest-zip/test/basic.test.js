@@ -72,7 +72,9 @@ test('Basic', async (t) => {
 
             t.equals(command.input.Bucket, 'example-bucket');
 
-            return Promise.resolve({});
+            return Promise.resolve({
+                ETag: '"123"'
+            });
         } else {
             t.fail('Unexpected Command');
         }
@@ -81,11 +83,27 @@ test('Basic', async (t) => {
     Sinon.stub(CloudFormation.CloudFormationClient.prototype, 'send').callsFake((command) => {
         if (command instanceof CloudFormation.CreateStackCommand) {
             order.push('CloudFormation:CreateStack');
-
             t.ok(command.input.StackName.startsWith('test-stack-batch'));
-
             return Promise.resolve({});
+        } else if (command instanceof CloudFormation.DescribeStacksCommand) {
+            order.push('CloudFormation:DescribeStacksCommand');
+            t.ok(command.input.StackName.startsWith('test-stack-batch'));
+            return Promise.resolve({
+                Stacks: [{
+                    StackId: 'test-stack-batch-fd75f86c-0991-45ae-9efd-9635a51e5af2',
+                    StackStatus: 'UPDATE_COMPLETE'
+                }]
+            });
+        } else if (command instanceof CloudFormation.DescribeStackEventsCommand) {
+            order.push('CloudFormation:DescribeStackEvents');
+            t.ok(command.input.StackName.startsWith('test-stack-batch'));
+            return Promise.resolve({
+                StackEvents: [{
+                    EventId: 1
+                }]
+            });
         } else {
+            console.error(command);
             t.fail('Unexpected Command');
         }
     });
@@ -101,8 +119,11 @@ test('Basic', async (t) => {
 
     t.deepEquals(order, [
         'SSM:GetParametersCommand',
+        'S3:HeadObjectCommand:example-key',
         'S3:GetObjectCommand:example-key',
         'CloudFormation:CreateStack',
+        'CloudFormation:DescribeStacksCommand',
+        'CloudFormation:DescribeStackEvents',
         'S3:PutObjectCommand',
         'S3:PutObjectCommand',
         'S3:PutObjectCommand',
