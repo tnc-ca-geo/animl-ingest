@@ -1,4 +1,3 @@
-import crypto from 'crypto';
 import os from 'os';
 import path from 'path';
 import fs from 'fs';
@@ -44,9 +43,6 @@ export default async function handler() {
         fs.createWriteStream(path.resolve(os.tmpdir(), 'input.zip'))
     );
 
-    const batch = `batch-${crypto.randomUUID()}`;
-    console.log(`ok - generated batch id: ${batch}`);
-
     const StackName = `${process.env.StackName}-${batch}`;
     await cf.send(new CloudFormation.CreateStackCommand({
         StackName,
@@ -62,27 +58,7 @@ export default async function handler() {
 
     await monitor(StackName);
 
-    console.log('ok - created batch stack');
-
-    await fetcher(params.get(`/api/url-${STAGE}`), {
-        query: `
-            mutation CreateBatch($input: CreateBatchInput!) {
-                createBatch(input: $input) {
-                    batch {
-                        _id
-                        processingStart
-                    }
-                }
-            }
-        `,
-        variables: {
-            input: {
-                _id: batch,
-                eTag: JSON.parse(head.ETag), // Required to remove double escape by AWS
-                processingStart: new Date()
-            }
-        }
-    });
+    const batch = task.Key.replace('.zip', '');
 
     const zip = new Zip(path.resolve(os.tmpdir(), 'input.zip'));
 
@@ -118,6 +94,8 @@ export default async function handler() {
         variables: {
             input: {
                 _id: batch,
+                eTag: JSON.parse(head.ETag), // Required to remove double escape by AWS
+                processingStart: new Date(),
                 total: total
             }
         }
