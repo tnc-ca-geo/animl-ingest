@@ -43,7 +43,29 @@ export default async function handler() {
         fs.createWriteStream(path.resolve(os.tmpdir(), 'input.zip'))
     );
 
+    const batch = task.Key.replace('.zip', '');
     const StackName = `${process.env.StackName}-${batch}`;
+
+    await fetcher(params.get(`/api/url-${STAGE}`), {
+        query: `
+            mutation UpdateBatch($input: UpdateBatchInput!){
+                updateBatch(input: $input) {
+                    batch {
+                        _id
+                        total
+                    }
+                }
+            }
+        `,
+        variables: {
+            input: {
+                _id: batch,
+                eTag: JSON.parse(head.ETag), // Required to remove double escape by AWS
+                processingStart: new Date(),
+            }
+        }
+    });
+
     await cf.send(new CloudFormation.CreateStackCommand({
         StackName,
         TemplateBody: JSON.stringify(Stack.generate(process.env.StackName, task, STAGE)),
@@ -57,8 +79,6 @@ export default async function handler() {
     }));
 
     await monitor(StackName);
-
-    const batch = task.Key.replace('.zip', '');
 
     const zip = new Zip(path.resolve(os.tmpdir(), 'input.zip'));
 
@@ -94,8 +114,6 @@ export default async function handler() {
         variables: {
             input: {
                 _id: batch,
-                eTag: JSON.parse(head.ETag), // Required to remove double escape by AWS
-                processingStart: new Date(),
                 total: total
             }
         }

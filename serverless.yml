@@ -92,6 +92,8 @@ functions:
     image:
       name: delete
     name: IngestDelete-${opt:stage, self:provider.stage, 'dev'}
+    events:
+      - schedule: rate(1 hour)
   IngestImage:
     image:
       name: image
