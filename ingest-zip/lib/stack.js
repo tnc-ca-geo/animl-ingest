@@ -32,7 +32,7 @@ export default class Stack {
                     Type: 'AWS::SQS::Queue',
                     Properties: {
                         QueueName: cf.join([cf.stackName, '-dlq.fifo']),
-                        FifoQueue: true,
+                        FifoQueue: true
                     }
                 },
                 PredInference: {

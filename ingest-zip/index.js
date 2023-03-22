@@ -1,4 +1,5 @@
 import os from 'os';
+import crypto from 'node:crypto';
 import path from 'path';
 import fs from 'fs';
 import { pipeline } from 'stream/promises';
@@ -61,7 +62,7 @@ export default async function handler() {
             input: {
                 _id: batch,
                 eTag: JSON.parse(head.ETag), // Required to remove double escape by AWS
-                processingStart: new Date(),
+                processingStart: new Date()
             }
         }
     });
