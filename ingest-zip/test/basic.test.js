@@ -49,7 +49,7 @@ test('Basic', async (t) => {
 
             t.deepEquals(command.input, {
                 Bucket: 'example-bucket',
-                Key: 'example-key'
+                Key: 'batch-example-key'
             });
 
             return Promise.resolve({
@@ -103,13 +103,12 @@ test('Basic', async (t) => {
                 }]
             });
         } else {
-            console.error(command);
             t.fail('Unexpected Command');
         }
     });
 
     try {
-        process.env.TASK = JSON.stringify({ Bucket: 'example-bucket', Key: 'example-key' });
+        process.env.TASK = JSON.stringify({ Bucket: 'example-bucket', Key: 'batch-example-key' });
         process.env.STAGE = 'test';
         process.env.StackName = 'test-stack';
         await IngestZip();
@@ -119,8 +118,8 @@ test('Basic', async (t) => {
 
     t.deepEquals(order, [
         'SSM:GetParametersCommand',
-        'S3:HeadObjectCommand:example-key',
-        'S3:GetObjectCommand:example-key',
+        'S3:HeadObjectCommand:batch-example-key',
+        'S3:GetObjectCommand:batch-example-key',
         'CloudFormation:CreateStack',
         'CloudFormation:DescribeStacksCommand',
         'CloudFormation:DescribeStackEvents',
@@ -132,7 +131,7 @@ test('Basic', async (t) => {
         'S3:PutObjectCommand',
         'S3:PutObjectCommand',
         'S3:PutObjectCommand',
-        'S3:DeleteObjectCommand:example-key'
+        'S3:DeleteObjectCommand:batch-example-key'
     ]);
 
     Sinon.restore();
