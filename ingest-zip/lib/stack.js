@@ -79,7 +79,7 @@ export default class Stack {
                                     MetricName: 'ApproximateNumberOfMessagesNotVisible',
                                     Dimensions: [{
                                         Name: 'QueueName',
-                                        Value: cf.stackName
+                                        Value: cf.getAtt('PredQueue', 'QueueName')
                                     }]
                                 },
                                 Period: 60,
@@ -94,7 +94,7 @@ export default class Stack {
                                     MetricName: 'ApproximateNumberOfMessagesVisible',
                                     Dimensions: [{
                                         Name: 'QueueName',
-                                        Value: cf.stackName
+                                        Value: cf.getAtt('PredQueue', 'QueueName')
                                     }]
                                 },
                                 Period: 60,
@@ -109,7 +109,7 @@ export default class Stack {
                                     MetricName: 'ApproximateNumberOfMessagesDelayed',
                                     Dimensions: [{
                                         Name: 'QueueName',
-                                        Value: cf.stackName
+                                        Value: cf.getAtt('PredQueue', 'QueueName')
                                     }]
                                 },
                                 Period: 60,
@@ -139,7 +139,7 @@ export default class Stack {
                                     MetricName: 'ApproximateNumberOfMessagesVisible',
                                     Dimensions: [{
                                         Name: 'QueueName',
-                                        Value: cf.join([cf.stackName, '-dlq'])
+                                        Value: cf.getAtt('PredDLQ', 'QueueName')
                                     }]
                                 },
                                 Period: 60,
@@ -154,7 +154,7 @@ export default class Stack {
                                     MetricName: 'ApproximateNumberOfMessagesDelayed',
                                     Dimensions: [{
                                         Name: 'QueueName',
-                                        Value: cf.join([cf.stackName, '-dlq'])
+                                        Value: cf.getAtt('PredDLQ', 'QueueName')
                                     }]
                                 },
                                 Period: 60,
