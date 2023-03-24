@@ -238,7 +238,7 @@ export default class Task {
                 const tmp_path = await this.resize(md, filename, this.IMG_SIZES[size]);
                 // NOTE: S3 is not deferring to my attempts to manually set
                 // Content Type for RidgeTec images. It only works for Buckeye images
-                await s3.send(new S3.UploadCommand({
+                await s3.send(new S3.PutObjectCommand({
                     Body: fs.readFileSync(tmp_path),
                     Bucket: Bucket,
                     Key: Key,
