@@ -85,8 +85,9 @@ export default async function handler() {
 
     let total = 0;
     for (const entry of zip.getEntries()) {
-        const { ext } = path.parse(entry.entryName);
-        if (!ext) continue;
+        const parsed = path.parse(entry.entryName);
+        if (!parsed.ext) continue;
+        if (parsed.base[0] === '.') continue;
 
         const data = entry.getData();
         // Ensure if there are images with the same name they don't clobber on s3
