@@ -7,9 +7,21 @@ export async function handler(event) {
     const cf = new CloudFormation.CloudFormationClient({ region: process.env.AWS_DEFAULT_REGION || 'us-east-1' });
     const ssm = new SSM.SSMClient({ region: process.env.AWS_DEFAULT_REGION || 'us-east-1' });
 
-    const alarm = JSON.parse(event.Records[0].Sns.Message).AlarmName;
+    if (!event || !event.Records.length) throw new Error('Event not populated');
 
     const STAGE = process.env.STAGE || 'dev';
+
+    let StackName = null;
+    if (event.Records[0].Sns) {
+        const alarm = JSON.parse(event.Records[0].Sns.Message).AlarmName;
+        StackName =  alarm.replace('-sqs-empty', '');
+    } else if (event.Records[0]) {
+        console.error(event.Records[0], typeof event.Records[0]);
+    } else {
+        throw new Error('Unknown Event Type');
+    }
+
+    if (!StackName) throw new Error('StackName could not be determined');
 
     const params = new Map();
     for (const param of (await ssm.send(new SSM.GetParametersCommand({
@@ -19,8 +31,6 @@ export async function handler(event) {
         console.log(`ok - setting ${param.Name}`);
         params.set(param.Name, param.Value);
     }
-
-    const StackName =  alarm.replace('-sqs-empty', '');
 
     console.log(`ok - deleting: ${StackName}`);
 
