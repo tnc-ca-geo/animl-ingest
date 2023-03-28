@@ -7,16 +7,19 @@ export async function handler(event) {
     const cf = new CloudFormation.CloudFormationClient({ region: process.env.AWS_DEFAULT_REGION || 'us-east-1' });
     const ssm = new SSM.SSMClient({ region: process.env.AWS_DEFAULT_REGION || 'us-east-1' });
 
-    if (!event || !event.Records.length) throw new Error('Event not populated');
+    if (!event) throw new Error('Event not populated');
 
     const STAGE = process.env.STAGE || 'dev';
 
     let StackName = null;
-    if (event.Records[0].Sns) {
+    if (event.Records && event.Records[0] && event.Records[0].Sns) {
         const alarm = JSON.parse(event.Records[0].Sns.Message).AlarmName;
         StackName =  alarm.replace('-sqs-empty', '');
-    } else if (event.Records[0]) {
-        console.error(event.Records[0], typeof event.Records[0]);
+    } else if (event.batch) {
+        StackName = `animl-ingest-${process.env.STAGE}-${event.batch}`;
+    } else if (event.source) {
+        console.error('Scheduled Event');
+        return;
     } else {
         throw new Error('Unknown Event Type');
     }
