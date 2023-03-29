@@ -4,19 +4,20 @@ import SSM from '@aws-sdk/client-ssm';
 const APIKEY = process.env.APIKEY;
 
 export async function handler(event) {
-    const cf = new CloudFormation.CloudFormationClient({ region: process.env.AWS_DEFAULT_REGION || 'us-east-1' });
-    const ssm = new SSM.SSMClient({ region: process.env.AWS_DEFAULT_REGION || 'us-east-1' });
-
     if (!event) throw new Error('Event not populated');
 
     const STAGE = process.env.STAGE || 'dev';
+    const params = new Map();
 
     let StackName = null;
+    let batch = null;
     if (event.Records && event.Records[0] && event.Records[0].Sns) {
         const alarm = JSON.parse(event.Records[0].Sns.Message).AlarmName;
         StackName =  alarm.replace('-sqs-empty', '');
+        batch = `batch-${StackName.replace(/^.*-batch-/, '')}`;
     } else if (event.batch) {
         StackName = `animl-ingest-${process.env.STAGE}-${event.batch}`;
+        batch = event.batch;
     } else if (event.source) {
         console.error('Scheduled Event');
         return;
@@ -26,45 +27,74 @@ export async function handler(event) {
 
     if (!StackName) throw new Error('StackName could not be determined');
 
-    const params = new Map();
-    for (const param of (await ssm.send(new SSM.GetParametersCommand({
-        Names: [`/api/url-${STAGE}`],
-        WithDecryption: true
-    }))).Parameters) {
-        console.log(`ok - setting ${param.Name}`);
-        params.set(param.Name, param.Value);
-    }
+    try {
+        const cf = new CloudFormation.CloudFormationClient({ region: process.env.AWS_DEFAULT_REGION || 'us-east-1' });
+        const ssm = new SSM.SSMClient({ region: process.env.AWS_DEFAULT_REGION || 'us-east-1' });
 
-    console.log(`ok - deleting: ${StackName}`);
+        for (const param of (await ssm.send(new SSM.GetParametersCommand({
+            Names: [`/api/url-${STAGE}`],
+            WithDecryption: true
+        }))).Parameters) {
+            console.log(`ok - setting ${param.Name}`);
+            params.set(param.Name, param.Value);
+        }
 
-    await cf.send(new CloudFormation.DeleteStackCommand({ StackName }));
+        console.log(`ok - deleting: ${StackName}`);
 
-    const batchId = `batch-${StackName.replace(/^.*-batch-/, '')}`;
+        await cf.send(new CloudFormation.DeleteStackCommand({ StackName }));
 
-    console.log(`ok - batch: ${batchId}`);
+        console.log(`ok - batch: ${batch}`);
 
-    await fetcher(params.get(`/api/url-${STAGE}`), {
-        query: `
-            mutation UpdateBatch($input: UpdateBatchInput!){
-                updateBatch(input: $input) {
-                    batch {
-                        _id
-                        processingStart
-                        processingEnd
-                        total
+        await fetcher(params.get(`/api/url-${STAGE}`), {
+            query: `
+                mutation UpdateBatch($input: UpdateBatchInput!){
+                    updateBatch(input: $input) {
+                        batch {
+                            _id
+                            processingStart
+                            processingEnd
+                            total
+                        }
                     }
                 }
+            `,
+            variables: {
+                input: {
+                    _id: batch,
+                    processingEnd: new Date()
+                }
             }
-        `,
-        variables: {
-            input: {
-                _id: batchId,
-                processingEnd: new Date()
-            }
-        }
-    });
+        });
 
-    console.log('ok - stack deletion complete');
+        console.log('ok - stack deletion complete');
+    } catch (err) {
+        console.error(err);
+
+        if (params.has(`/api/url-${STAGE}`)) {
+            await fetcher(params.get(`/api/url-${STAGE}`), {
+                query: `
+                    mutation CreateBatchError($input: CreateBatchErrorInput!) {
+                        createBatchError(input: $input) {
+                            _id
+                            batch
+                            error
+                            created
+                        }
+                    }
+                `,
+                variables: {
+                    input: {
+                        error: err.message,
+                        batch: batch
+                    }
+                }
+            });
+        } else {
+            console.error('not ok - Failed to post to CreateBatchError');
+        }
+
+        throw err;
+    }
 }
 
 async function fetcher(url, body) {

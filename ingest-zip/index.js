@@ -17,15 +17,15 @@ export default async function handler() {
     const task = JSON.parse(process.env.TASK);
     const batch = task.Key.replace('.zip', '');
     const StackName = `${process.env.StackName}-${batch}`;
+    const STAGE = process.env.STAGE || 'dev';
+
+    const params = new Map();
 
     try {
         const s3 = new S3.S3Client({ region: process.env.AWS_DEFAULT_REGION || 'us-east-1' });
         const cf = new CloudFormation.CloudFormationClient({ region: process.env.AWS_DEFAULT_REGION || 'us-east-1' });
         const ssm = new SSM.SSMClient({ region: process.env.AWS_DEFAULT_REGION || 'us-east-1' });
 
-        const STAGE = process.env.STAGE || 'dev';
-
-        const params = new Map();
         for (const param of (await ssm.send(new SSM.GetParametersCommand({
             Names: [`/api/url-${STAGE}`],
             WithDecryption: true
@@ -130,24 +130,30 @@ export default async function handler() {
     } catch (err) {
         console.error(err);
 
-        await fetcher(params.get(`/api/url-${STAGE}`), {
-            query: `
-                mutation CreateBatchError($input: CreateBatchErrorInput!) {
-                    createBatchError(input: $input) {
-                        _id
-                        batch
-                        error
-                        created
+        if (params.has(`/api/url-${STAGE}`)) {
+            await fetcher(params.get(`/api/url-${STAGE}`), {
+                query: `
+                    mutation CreateBatchError($input: CreateBatchErrorInput!) {
+                        createBatchError(input: $input) {
+                            _id
+                            batch
+                            error
+                            created
+                        }
+                    }
+                `,
+                variables: {
+                    input: {
+                        error: err.message,
+                        batch: batch
                     }
                 }
-            `,
-            variables: {
-                input: {
-                    error: err.message,
-                    batch: batch
-                }
-            }
-        });
+            });
+        } else {
+            console.error('not ok - Failed to post to CreateBatchError');
+        }
+
+        throw err;
     }
 }
 
