@@ -14,119 +14,141 @@ import Stack from './lib/stack.js';
 const APIKEY = process.env.APIKEY;
 
 export default async function handler() {
-    const s3 = new S3.S3Client({ region: process.env.AWS_DEFAULT_REGION || 'us-east-1' });
-    const cf = new CloudFormation.CloudFormationClient({ region: process.env.AWS_DEFAULT_REGION || 'us-east-1' });
-    const ssm = new SSM.SSMClient({ region: process.env.AWS_DEFAULT_REGION || 'us-east-1' });
-
-    const STAGE = process.env.STAGE || 'dev';
-
-    const params = new Map();
-    for (const param of (await ssm.send(new SSM.GetParametersCommand({
-        Names: [`/api/url-${STAGE}`],
-        WithDecryption: true
-    }))).Parameters) {
-        console.log(`ok - setting ${param.Name}`);
-        params.set(param.Name, param.Value);
-    }
-
     const task = JSON.parse(process.env.TASK);
-
-    const head = await s3.send(new S3.HeadObjectCommand({
-        Bucket: task.Bucket,
-        Key: task.Key
-    }));
-
-    await pipeline(
-        (await s3.send(new S3.GetObjectCommand({
-            Bucket: task.Bucket,
-            Key: task.Key
-        }))).Body,
-        fs.createWriteStream(path.resolve(os.tmpdir(), 'input.zip'))
-    );
-
     const batch = task.Key.replace('.zip', '');
     const StackName = `${process.env.StackName}-${batch}`;
 
-    await fetcher(params.get(`/api/url-${STAGE}`), {
-        query: `
-            mutation UpdateBatch($input: UpdateBatchInput!){
-                updateBatch(input: $input) {
-                    batch {
-                        _id
-                        total
-                    }
-                }
-            }
-        `,
-        variables: {
-            input: {
-                _id: batch,
-                eTag: JSON.parse(head.ETag), // Required to remove double escape by AWS
-                processingStart: new Date()
-            }
+    try {
+        const s3 = new S3.S3Client({ region: process.env.AWS_DEFAULT_REGION || 'us-east-1' });
+        const cf = new CloudFormation.CloudFormationClient({ region: process.env.AWS_DEFAULT_REGION || 'us-east-1' });
+        const ssm = new SSM.SSMClient({ region: process.env.AWS_DEFAULT_REGION || 'us-east-1' });
+
+        const STAGE = process.env.STAGE || 'dev';
+
+        const params = new Map();
+        for (const param of (await ssm.send(new SSM.GetParametersCommand({
+            Names: [`/api/url-${STAGE}`],
+            WithDecryption: true
+        }))).Parameters) {
+            console.log(`ok - setting ${param.Name}`);
+            params.set(param.Name, param.Value);
         }
-    });
 
-    await cf.send(new CloudFormation.CreateStackCommand({
-        StackName,
-        TemplateBody: JSON.stringify(Stack.generate(process.env.StackName, task, STAGE)),
-        Parameters: [{
-            ParameterKey: 'BatchID',
-            ParameterValue: batch
-        },{
-            ParameterKey: 'S3URL',
-            ParameterValue: `s3://${task.Bucket}/${task.Key}`
-        }]
-    }));
-
-    await monitor(StackName);
-
-    const zip = new Zip(path.resolve(os.tmpdir(), 'input.zip'));
-
-    let total = 0;
-    for (const entry of zip.getEntries()) {
-        const parsed = path.parse(entry.entryName);
-        if (!parsed.ext) continue;
-        if (parsed.base[0] === '.') continue;
-
-        const data = entry.getData();
-        // Ensure if there are images with the same name they don't clobber on s3
-        const key = crypto.createHash('md5').update(data).digest('hex');
-
-        console.log(`ok - writing: ${batch}/${key}${ext}`);
-        await s3.send(new S3.PutObjectCommand({
+        const head = await s3.send(new S3.HeadObjectCommand({
             Bucket: task.Bucket,
-            Key: `${batch}/${key}${ext}`,
-            Body: data
+            Key: task.Key
         }));
-        total++;
-    }
 
-    await fetcher(params.get(`/api/url-${STAGE}`), {
-        query: `
-            mutation UpdateBatch($input: UpdateBatchInput!){
-                updateBatch(input: $input) {
-                    batch {
-                        _id
-                        total
+        await pipeline(
+            (await s3.send(new S3.GetObjectCommand({
+                Bucket: task.Bucket,
+                Key: task.Key
+            }))).Body,
+            fs.createWriteStream(path.resolve(os.tmpdir(), 'input.zip'))
+        );
+
+        await fetcher(params.get(`/api/url-${STAGE}`), {
+            query: `
+                mutation UpdateBatch($input: UpdateBatchInput!){
+                    updateBatch(input: $input) {
+                        batch {
+                            _id
+                            total
+                        }
                     }
                 }
+            `,
+            variables: {
+                input: {
+                    _id: batch,
+                    eTag: JSON.parse(head.ETag), // Required to remove double escape by AWS
+                    processingStart: new Date()
+                }
             }
-        `,
-        variables: {
-            input: {
-                _id: batch,
-                total: total
-            }
+        });
+
+        await cf.send(new CloudFormation.CreateStackCommand({
+            StackName,
+            TemplateBody: JSON.stringify(Stack.generate(process.env.StackName, task, STAGE)),
+            Parameters: [{
+                ParameterKey: 'BatchID',
+                ParameterValue: batch
+            },{
+                ParameterKey: 'S3URL',
+                ParameterValue: `s3://${task.Bucket}/${task.Key}`
+            }]
+        }));
+
+        await monitor(StackName);
+
+        const zip = new Zip(path.resolve(os.tmpdir(), 'input.zip'));
+
+        let total = 0;
+        for (const entry of zip.getEntries()) {
+            const parsed = path.parse(entry.entryName);
+            if (!parsed.ext) continue;
+            if (parsed.base[0] === '.') continue;
+
+            const data = entry.getData();
+            // Ensure if there are images with the same name they don't clobber on s3
+            const key = crypto.createHash('md5').update(data).digest('hex');
+
+            console.log(`ok - writing: ${batch}/${key}${parsed.ext}`);
+            await s3.send(new S3.PutObjectCommand({
+                Bucket: task.Bucket,
+                Key: `${batch}/${key}${parsed.ext}`,
+                Body: data
+            }));
+            total++;
         }
-    });
 
-    await s3.send(new S3.DeleteObjectCommand({
-        Bucket: task.Bucket,
-        Key: task.Key
-    }));
+        await fetcher(params.get(`/api/url-${STAGE}`), {
+            query: `
+                mutation UpdateBatch($input: UpdateBatchInput!){
+                    updateBatch(input: $input) {
+                        batch {
+                            _id
+                            total
+                        }
+                    }
+                }
+            `,
+            variables: {
+                input: {
+                    _id: batch,
+                    total: total
+                }
+            }
+        });
 
-    console.log('ok - extraction complete');
+        await s3.send(new S3.DeleteObjectCommand({
+            Bucket: task.Bucket,
+            Key: task.Key
+        }));
+
+        console.log('ok - extraction complete');
+    } catch (err) {
+        console.error(err);
+
+        await fetcher(params.get(`/api/url-${STAGE}`), {
+            query: `
+                mutation CreateBatchError($input: CreateBatchErrorInput!) {
+                    createBatchError(input: $input) {
+                        _id
+                        batch
+                        error
+                        created
+                    }
+                }
+            `,
+            variables: {
+                input: {
+                    error: err.message,
+                    batch: batch
+                }
+            }
+        });
+    }
 }
 
 function monitor(StackName) {
