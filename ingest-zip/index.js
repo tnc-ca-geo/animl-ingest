@@ -8,7 +8,7 @@ import S3 from '@aws-sdk/client-s3';
 import SSM from '@aws-sdk/client-ssm';
 import CloudFormation from '@aws-sdk/client-cloudformation';
 import EventStream from './lib/cfstream.js';
-import Zip from 'adm-zip';
+import StreamZip from 'node-stream-zip';
 import Stack from './lib/stack.js';
 
 const APIKEY = process.env.APIKEY;
@@ -81,15 +81,20 @@ export default async function handler() {
 
         await monitor(StackName);
 
-        const zip = new Zip(path.resolve(os.tmpdir(), 'input.zip'));
+        const zip = new StreamZip.async({
+            file: path.resolve(os.tmpdir(), 'input.zip'),
+            skipEntryNameValidation: true
+        });
 
         let total = 0;
-        for (const entry of zip.getEntries()) {
-            const parsed = path.parse(entry.entryName);
+        const entries = await zip.entries();
+        for (const entrykey in entries) {
+            const entry = entries[entrykey];
+            const parsed = path.parse(entry.name);
             if (!parsed.ext) continue;
             if (parsed.base[0] === '.') continue;
 
-            const data = entry.getData();
+            const data = await zip.entryData(entry);
             // Ensure if there are images with the same name they don't clobber on s3
             const key = crypto.createHash('md5').update(data).digest('hex');
 
@@ -101,6 +106,8 @@ export default async function handler() {
             }));
             total++;
         }
+
+        zip.close();
 
         await fetcher(params.get(`/api/url-${STAGE}`), {
             query: `
