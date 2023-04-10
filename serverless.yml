@@ -130,6 +130,13 @@ resources:
         SourceArn:  !Ref BatchZipNotifyDeleteSNS
         FunctionName: !Sub IngestDelete-${opt:stage, self:provider.stage, 'dev'}
 
+    BatchEFS:
+      Type: AWS::EFS::FileSystem
+      Properties:
+        FileSystemTags:
+          - Key: Name
+            Value: !Sub IngestZipEFS-${opt:stage, self:provider.stage, 'dev'}
+
     BatchZipIngestQueue:
       Type: AWS::Batch::JobQueue
       Properties:
@@ -249,9 +256,6 @@ resources:
           MaxvCpus: 128
           Subnets:
             - 'subnet-c958fd83'
-            - 'subnet-c045cf9d'
-            - 'subnet-1af0f231'
-            - 'subnet-6fbc0717'
           SecurityGroupIds:
             - !Ref BatchSecurityGroup
 
@@ -273,6 +277,10 @@ resources:
             PlatformVersion: 'LATEST'
           NetworkConfiguration:
             AssignPublicIp: 'ENABLED'
+          Volumes:
+            - Name: efs
+              EfsVolumeConfiguration:
+                FileSystemId : !Ref BatchEFS
           Environment:
             - Name: 'StackName'
               Value: !Ref "AWS::StackName"
