@@ -275,6 +275,8 @@ resources:
         ContainerProperties:
           FargatePlatformConfiguration:
             PlatformVersion: 'LATEST'
+          EphemeralStorage:
+            SizeInGiB: 75
           NetworkConfiguration:
             AssignPublicIp: 'ENABLED'
           Volumes:
