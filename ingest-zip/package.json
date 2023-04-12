@@ -14,7 +14,7 @@
     "license": "ISC",
     "dependencies": {
         "adm-zip": "^0.5.10",
-        "aws-sdk": "^2.1281.0"
+        "aws-sdk": "^2.1356.0"
     },
     "devDependencies": {
         "eslint": "^8.30.0",
