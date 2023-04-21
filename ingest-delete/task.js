@@ -28,8 +28,8 @@ export async function handler(event) {
     if (!StackName) throw new Error('StackName could not be determined');
 
     try {
-        const cf = new CloudFormation.CloudFormationClient({ region: process.env.AWS_DEFAULT_REGION || 'us-east-1' });
-        const ssm = new SSM.SSMClient({ region: process.env.AWS_DEFAULT_REGION || 'us-east-1' });
+        const cf = new CloudFormation.CloudFormationClient({ region: process.env.AWS_DEFAULT_REGION || 'us-west-2' });
+        const ssm = new SSM.SSMClient({ region: process.env.AWS_DEFAULT_REGION || 'us-west-2' });
 
         for (const param of (await ssm.send(new SSM.GetParametersCommand({
             Names: [`/api/url-${STAGE}`],

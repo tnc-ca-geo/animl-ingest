@@ -22,9 +22,9 @@ export default async function handler() {
     const params = new Map();
 
     try {
-        const s3 = new S3.S3Client({ region: process.env.AWS_DEFAULT_REGION || 'us-east-1' });
-        const cf = new CloudFormation.CloudFormationClient({ region: process.env.AWS_DEFAULT_REGION || 'us-east-1' });
-        const ssm = new SSM.SSMClient({ region: process.env.AWS_DEFAULT_REGION || 'us-east-1' });
+        const s3 = new S3.S3Client({ region: process.env.AWS_DEFAULT_REGION || 'us-west-2' });
+        const cf = new CloudFormation.CloudFormationClient({ region: process.env.AWS_DEFAULT_REGION || 'us-west-2' });
+        const ssm = new SSM.SSMClient({ region: process.env.AWS_DEFAULT_REGION || 'us-west-2' });
 
         for (const param of (await ssm.send(new SSM.GetParametersCommand({
             Names: [`/api/url-${STAGE}`],
@@ -165,7 +165,7 @@ export default async function handler() {
 }
 
 function monitor(StackName) {
-    const region = process.env.AWS_DEFAULT_REGION || 'us-east-1';
+    const region = process.env.AWS_DEFAULT_REGION || 'us-west-2';
 
     return new Promise((resolve, reject) => {
         const events = EventStream(StackName, { region })
