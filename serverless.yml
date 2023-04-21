@@ -291,7 +291,7 @@ resources:
               - BatchJobRole
               - Arn
           ReadonlyRootFilesystem: false
-          Image: !Sub "${AWS::AccountId}.dkr.ecr.${AWS::Region}.amazonaws.com/serverless-animl-ingest-dev:zip"
+          Image: !Sub "${AWS::AccountId}.dkr.ecr.${AWS::Region}.amazonaws.com/serverless-animl-ingest-${self:provider.stage}:zip"
 
     BatchExecRole:
       Type: AWS::IAM::Role
