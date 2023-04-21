@@ -303,7 +303,7 @@ export default class Task {
 
         if (this.SUPPORTED_FILE_TYPES.includes(ext)) {
             return IngestType.IMAGE;
-        } else if (this.BATCH_FILE_TYPES) {
+        } else if (this.BATCH_FILE_TYPES.includes(ext)) {
             return IngestType.BATCH;
         } else {
             return IngestType.NONE;
