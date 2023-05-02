@@ -18,7 +18,7 @@ jobs:
     timeout-minutes: 15
     strategy:
       matrix:
-        task: [ingest-image, ingest-zip]
+        task: [ingest-image, ingest-zip, ingest-delete]
     steps:
       - uses: actions/checkout@v3
         with:
@@ -29,4 +29,5 @@ jobs:
           cd ${{ matrix.task }}
           npm install
           npm run lint
+          npm run test
 

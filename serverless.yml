@@ -14,6 +14,8 @@ provider:
         path: ./ingest-zip/
       image:
         path: ./ingest-image/
+      delete:
+        path: ./ingest-delete/
   iam:
     role:
       managedPolicies:
@@ -40,11 +42,35 @@ provider:
           Resource: '*'
         - Effect: Allow
           Action:
+            - sqs:DeleteQueue
+          Resource:
+            - !Sub "arn:aws:sqs:${AWS::Region}:${AWS::AccountId}:${AWS::StackName}-*"
+        - Effect: Allow
+          Action:
+            - cloudwatch:DeleteAlarms
+          Resource:
+            - !Sub 'arn:aws:cloudwatch:${AWS::Region}:${AWS::AccountId}:alarm:${AWS::StackName}-*'
+        - Effect: Allow
+          Action:
             - 'lambda:GetFunction'
             - 'lambda:InvokeFunction'
           Resource:
             - !Sub arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:exif-api
             - !Sub arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:exif-api-*
+        - Effect: Allow
+          Action:
+            - lambda:GetEventSourceMapping
+            - lambda:DeleteEventSourceMapping
+          Resource: '*'
+        - Effect: Allow
+          Action:
+            - cloudformation:DeleteStack
+            - cloudformation:ListStacks
+            - cloudformation:DescribeStacks
+            - cloudformation:DescribeStackEvents
+            - cloudformation:DescribeStackResources
+          Resource:
+            - !Sub "arn:aws:cloudformation:${AWS::Region}:${AWS::AccountId}:stack/${AWS::StackName}-*"
         - Effect: Allow
           Action:
             - ssm:GetParameter
@@ -62,6 +88,12 @@ functions:
     image:
       name: zip
     name: IngestZip-${opt:stage, self:provider.stage, 'dev'}
+  IngestDelete:
+    image:
+      name: delete
+    name: IngestDelete-${opt:stage, self:provider.stage, 'dev'}
+    events:
+      - schedule: rate(1 hour)
   IngestImage:
     image:
       name: image
@@ -81,6 +113,22 @@ resources:
 
     # AWS Resources naming conventions in Serverless (for reference):
     # https://www.serverless.com/framework/docs/providers/aws/guide/resources/
+
+    BatchZipNotifyDeleteSNS:
+      Type: AWS::SNS::Topic
+      Properties:
+        TopicName: !Sub ${AWS::StackName}-delete
+        Subscription:
+          - Protocol: lambda
+            Endpoint: !Sub arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:IngestDelete-${opt:stage, self:provider.stage, 'dev'}
+
+    BatchZipNotifyDeleteSNSInvokePermission:
+      Type: AWS::Lambda::Permission
+      Properties:
+        Action: lambda:InvokeFunction
+        Principal: sns.amazonaws.com
+        SourceArn:  !Ref BatchZipNotifyDeleteSNS
+        FunctionName: !Sub IngestDelete-${opt:stage, self:provider.stage, 'dev'}
 
     BatchZipIngestQueue:
       Type: AWS::Batch::JobQueue
@@ -127,18 +175,60 @@ resources:
             PolicyDocument:
               Statement:
                 - Effect: Allow
-                  Resource: '*'
                   Action:
                     - batch:DescribeJobs
+                  Resource: '*'
                 - Effect: Allow
+                  Action:
+                    - sqs:*
+                  Resource:
+                    - !Sub "arn:aws:sqs:${AWS::Region}:${AWS::AccountId}:${AWS::StackName}-*"
+                - Effect: Allow
+                  Action:
+                    - cloudformation:CreateStack
+                  Resource:
+                    - !Sub "arn:aws:cloudformation:${AWS::Region}:${AWS::AccountId}:stack/*"
+                - Effect: Allow
+                  Action:
+                    - cloudwatch:DescribeAlarms
+                  Resource:
+                    - !Sub "arn:aws:cloudwatch:${AWS::Region}:${AWS::AccountId}:alarm:*"
+                - Effect: Allow
+                  Action:
+                    - lambda:GetEventSourceMapping
+                    - lambda:CreateEventSourceMapping
+                  Resource: '*'
+                - Effect: Allow
+                  Action:
+                    - cloudwatch:DeleteAlarms
+                    - cloudwatch:PutMetricAlarm
+                    - cloudwatch:SetAlarmState
+                  Resource:
+                    - !Sub 'arn:aws:cloudwatch:${AWS::Region}:${AWS::AccountId}:alarm:${AWS::StackName}-*'
+                - Effect: Allow
+                  Action:
+                    - cloudformation:DeleteStack
+                    - cloudformation:ListStacks
+                    - cloudformation:DescribeStacks
+                    - cloudformation:DescribeStackEvents
+                    - cloudformation:DescribeStackResources
+                  Resource:
+                    - !Sub "arn:aws:cloudformation:${AWS::Region}:${AWS::AccountId}:stack/${AWS::StackName}-*"
+                - Effect: Allow
+                  Action: '*'
                   Resource:
                     - "arn:aws:s3:::animl-images-ingestion-${opt:stage, self:provider.stage, 'dev'}/*"
                     - "arn:aws:s3:::animl-images-ingestion-${opt:stage, self:provider.stage, 'dev'}"
-                  Action: '*'
                 - Effect: Allow
-                  Resource: '*'
                   Action:
                     - ecs:DescribeContainerInstances
+                  Resource: '*'
+                - Effect: Allow
+                  Action:
+                    - ssm:GetParameter
+                    - ssm:GetParameters
+                  Resource:
+                    - !Sub arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter/*
 
     BatchComputeEnvironment:
       Type: AWS::Batch::ComputeEnvironment
@@ -159,9 +249,6 @@ resources:
           MaxvCpus: 128
           Subnets:
             - 'subnet-c958fd83'
-            - 'subnet-c045cf9d'
-            - 'subnet-1af0f231'
-            - 'subnet-6fbc0717'
           SecurityGroupIds:
             - !Ref BatchSecurityGroup
 
@@ -181,11 +268,15 @@ resources:
         ContainerProperties:
           FargatePlatformConfiguration:
             PlatformVersion: 'LATEST'
+          EphemeralStorage:
+            SizeInGiB: 75
           NetworkConfiguration:
             AssignPublicIp: 'ENABLED'
           Environment:
             - Name: 'StackName'
               Value: !Ref "AWS::StackName"
+            - Name: 'APIKEY'
+              Value: '{{resolve:secretsmanager:api-key-${self:provider.stage}:SecretString:apikey}}'
           ResourceRequirements:
             - Type: 'VCPU'
               Value: 1
@@ -200,7 +291,7 @@ resources:
               - BatchJobRole
               - Arn
           ReadonlyRootFilesystem: false
-          Image: !Sub "${AWS::AccountId}.dkr.ecr.${AWS::Region}.amazonaws.com/serverless-animl-ingest-dev:batch"
+          Image: !Sub "${AWS::AccountId}.dkr.ecr.${AWS::Region}.amazonaws.com/serverless-animl-ingest-${self:provider.stage}:zip"
 
     BatchExecRole:
       Type: AWS::IAM::Role

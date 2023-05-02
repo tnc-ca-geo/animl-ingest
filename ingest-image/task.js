@@ -1,8 +1,12 @@
-import AWS from 'aws-sdk';
 import Enum from 'enum';
 import rimraf from 'rimraf';
 import mime from 'mime-types';
 import sharp from 'sharp';
+
+import S3 from '@aws-sdk/client-s3';
+import Batch from '@aws-sdk/client-batch';
+import Lambda from '@aws-sdk/client-lambda';
+import SSM from '@aws-sdk/client-ssm';
 
 import time from 'strtime';
 const strptime = time.strptime;
@@ -71,6 +75,12 @@ export default class Task {
                 console.log(`New file detected in ${md.Bucket}: ${md.Key}`);
                 md.FileName = `${path.parse(md.Key).name}${path.parse(md.Key).ext.toLowerCase()}`;
 
+                if (md.Key.match(/^batch-(\b[0-9a-f]{8}\b-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-\b[0-9a-f]{12}\b)/)) {
+                    md.batchId = md.Key.match(/^batch-\b[0-9a-f]{8}\b-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-\b[0-9a-f]{12}\b/)[0];
+                } else {
+                    md.batchId = null;
+                }
+
                 const ingest_type = task.validate(md.FileName);
 
                 if (ingest_type === IngestType.IMAGE) {
@@ -78,11 +88,11 @@ export default class Task {
                     await task.process_image(md);
 
                     console.log(`Deleting ${md.Key} from ${md.Bucket}`);
-                    const s3 = new AWS.S3({ region });
-                    await s3.deleteObject({
+                    const s3 = new S3.S3Client({ region });
+                    await s3.send(new S3.DeleteObjectCommand({
                         Bucket: md.Bucket,
                         Key: md.Key
-                    }).promise();
+                    }));
                 } else if (ingest_type === IngestType.BATCH) {
                     console.log('Processing as batch upload');
                     await task.process_batch(md);
@@ -101,12 +111,12 @@ export default class Task {
     }
 
     async get_config() {
-        const ssm = new AWS.SSM({ region });
+        const ssm = new SSM.SSMClient({ region });
 
-        for (const param of (await ssm.getParameters({
+        for (const param of (await ssm.send(new SSM.GetParametersCommand({
             Names: Array.from(this.SSM.keys()),
             WithDecryption: true
-        }).promise()).Parameters) {
+        }))).Parameters) {
             this[this.SSM.get(param.Name)] = param.Value;
         }
     }
@@ -121,7 +131,7 @@ export default class Task {
     }
 
     async save_image(md) {
-        console.log(`Posting metadata to API: ${md}`);
+        console.log(`Posting metadata to API: ${JSON.stringify(md)}`);
 
         try {
             const res = await fetch(this.ANIML_API_URL, {
@@ -175,13 +185,13 @@ export default class Task {
         const Key = path.join((err.message || 'UNKNOWN_ERROR'), path.parse(md.FileName).base);
         console.log(`Transferring s3://${Bucket}/${Key}`);
 
-        const s3 = new AWS.S3({ region });
-        await s3.copyObject({
+        const s3 = new S3.S3Client({ region });
+        await s3.send(new S3.CopyObjectCommand({
             CopySource: `${md.Bucket}/${md.Key}`,
             ContentType: md.MIMEType,
             Bucket: Bucket,
             Key: Key
-        }).promise();
+        }));
     }
 
     async copy_to_archive(md) {
@@ -191,13 +201,13 @@ export default class Task {
         const Key = path.join(String(md['SerialNumber']), archive_filename);
 
         console.log(`Transferring s3://${Bucket}/${Key}`);
-        const s3 = new AWS.S3({ region });
-        await s3.copyObject({
+        const s3 = new S3.S3Client({ region });
+        await s3.send(new S3.CopyObjectCommand({
             CopySource: `${md.Bucket}/${md.Key}`,
             ContentType: md.MIMEType,
             Bucket: Bucket,
             Key: Key
-        }).promise();
+        }));
 
         return md;
     }
@@ -215,7 +225,7 @@ export default class Task {
 
     async copy_to_prod(md) {
         const Bucket = md['ProdBucket'];
-        const s3 = new AWS.S3({ region });
+        const s3 = new S3.S3Client({ region });
 
         for (const size in this.IMG_SIZES) {
             // create filename and key
@@ -228,45 +238,42 @@ export default class Task {
                 const tmp_path = await this.resize(md, filename, this.IMG_SIZES[size]);
                 // NOTE: S3 is not deferring to my attempts to manually set
                 // Content Type for RidgeTec images. It only works for Buckeye images
-                await s3.upload({
+                await s3.send(new S3.PutObjectCommand({
                     Body: fs.readFileSync(tmp_path),
                     Bucket: Bucket,
                     Key: Key,
                     ContentType: md['MIMEType']
-                }).promise();
+                }));
             } else {
                 // copy original image directly over from staging bucket
-                await s3.copyObject({
+                await s3.send(new S3.CopyObjectCommand({
                     CopySource: `${md.Bucket}/${md.Key}`,
                     ContentType: md['MIMEType'],
                     Bucket: Bucket,
                     Key: Key
-                }).promise();
+                }));
             }
         }
     }
 
-    get_exif_data(md) {
-        const lambda = new AWS.Lambda({ region });
+    async get_exif_data(md) {
+        const lambda = new Lambda.LambdaClient({ region });
 
         console.log(`Calling Exif Lambda: ${this.EXIF_FUNCTION}`);
 
-        return new Promise((resolve, reject) => {
-            lambda.invoke({
-                FunctionName: this.EXIF_FUNCTION,
-                InvocationType: 'RequestResponse',
-                Payload: JSON.stringify({
-                    routeKey: 'GET /',
-                    queryStringParameters: {
-                        bucket: md.Bucket,
-                        key: md.Key
-                    }
-                })
-            }, (err, data) => { // .promise() doesn't work here
-                if (err) return reject(err);
-                return resolve(JSON.parse(JSON.parse(data.Payload).body));
-            });
-        });
+        const data = await lambda.send(new Lambda.InvokeCommand({
+            FunctionName: this.EXIF_FUNCTION,
+            InvocationType: 'RequestResponse',
+            Payload: JSON.stringify({
+                routeKey: 'GET /',
+                queryStringParameters: {
+                    bucket: md.Bucket,
+                    key: md.Key
+                }
+            })
+        }));
+
+        return JSON.parse(JSON.parse(new TextDecoder().decode(data.Payload)).body);
     }
 
     convert_datetime_to_ISO(date_time_exif, format = this.EXIF_DATE_TIME_FORMAT) {
@@ -296,7 +303,7 @@ export default class Task {
 
         if (this.SUPPORTED_FILE_TYPES.includes(ext)) {
             return IngestType.IMAGE;
-        } else if (this.BATCH_FILE_TYPES) {
+        } else if (this.BATCH_FILE_TYPES.includes(ext)) {
             return IngestType.BATCH;
         } else {
             return IngestType.NONE;
@@ -311,11 +318,11 @@ export default class Task {
         console.log(`Downloading s3://${md.Bucket}/${md.Key}`);
         const tmp_path = `${this.tmp_dir}/${md.FileName}`;
 
-        const s3 = new AWS.S3({ region });
+        const s3 = new S3.S3Client({ region });
         await pipeline(
-            s3.getObject({
+            (await s3.send(new S3.GetObjectCommand({
                 Bucket: md.Bucket, Key: md.Key
-            }).createReadStream(),
+            }))).Body,
             fs.createWriteStream(tmp_path)
         );
 
@@ -323,8 +330,8 @@ export default class Task {
     }
 
     async process_batch(md) {
-        const batch = new AWS.Batch({ region });
-        await batch.submitJob({
+        const batch = new Batch.BatchClient({ region });
+        await batch.send(new Batch.SubmitJobCommand({
             jobName: 'process-batch',
             jobQueue: this.BATCH_QUEUE,
             jobDefinition: this.BATCH_JOB,
@@ -334,7 +341,7 @@ export default class Task {
                     value: JSON.stringify(md)
                 }]
             }
-        }).promise();
+        }));
     }
 }
 
