@@ -20,7 +20,7 @@ export default class Stack {
                     Type: 'AWS::SQS::Queue',
                     Properties: {
                         QueueName: cf.join([cf.stackName, '.fifo']),
-                        VisibilityTimeout: 1200,
+                        VisibilityTimeout: 120,
                         FifoQueue: true,
                         RedrivePolicy: {
                             deadLetterTargetArn: cf.getAtt('PredDLQ', 'Arn'),
