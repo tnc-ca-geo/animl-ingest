@@ -13,6 +13,9 @@ import Stack from './lib/stack.js';
 
 const APIKEY = process.env.APIKEY;
 
+// If this is changed also update ingest-image
+const SUPPORTED_FILE_TYPES = ['.jpg', '.png'];
+
 export default async function handler() {
     const task = JSON.parse(process.env.TASK);
     const batch = task.Key.replace('.zip', '');
@@ -47,6 +50,26 @@ export default async function handler() {
             fs.createWriteStream(path.resolve(os.tmpdir(), 'input.zip'))
         );
 
+        // Preparse Zip to get a general sense of how many items are in the zip
+        // and if it is empty ignore it
+        const zip = new StreamZip.async({
+            file: path.resolve(os.tmpdir(), 'input.zip'),
+            skipEntryNameValidation: true
+        });
+
+        let total = 0;
+        const entries = await zip.entries();
+        for (const entrykey in entries) {
+            const entry = entries[entrykey];
+            const parsed = path.parse(entry.name);
+            if (!parsed.ext) continue;
+            if (parsed.base[0] === '.') continue;
+            if (!SUPPORTED_FILE_TYPES.includes(parsed.ext)) continue;
+            total++;
+        }
+
+        zip.close();
+
         await fetcher(params.get(`/api/url-${STAGE}`), {
             query: `
                 mutation UpdateBatch($input: UpdateBatchInput!){
@@ -62,6 +85,7 @@ export default async function handler() {
                 input: {
                     _id: batch,
                     eTag: JSON.parse(head.ETag), // Required to remove double escape by AWS
+                    total: total,
                     processingStart: new Date()
                 }
             }
@@ -86,13 +110,13 @@ export default async function handler() {
             skipEntryNameValidation: true
         });
 
-        let total = 0;
         const entries = await zip.entries();
         for (const entrykey in entries) {
             const entry = entries[entrykey];
             const parsed = path.parse(entry.name);
             if (!parsed.ext) continue;
             if (parsed.base[0] === '.') continue;
+            if (!SUPPORTED_FILE_TYPES.includes(parsed.ext)) continue;
 
             const data = await zip.entryData(entry);
             // Ensure if there are images with the same name they don't clobber on s3
@@ -104,29 +128,9 @@ export default async function handler() {
                 Key: `${batch}/${key}${parsed.ext}`,
                 Body: data
             }));
-            total++;
         }
 
         zip.close();
-
-        await fetcher(params.get(`/api/url-${STAGE}`), {
-            query: `
-                mutation UpdateBatch($input: UpdateBatchInput!){
-                    updateBatch(input: $input) {
-                        batch {
-                            _id
-                            total
-                        }
-                    }
-                }
-            `,
-            variables: {
-                input: {
-                    _id: batch,
-                    total: total
-                }
-            }
-        });
 
         await s3.send(new S3.DeleteObjectCommand({
             Bucket: task.Bucket,
