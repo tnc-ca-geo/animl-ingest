@@ -70,6 +70,16 @@ export default async function handler() {
 
         zip.close();
 
+        const processingStart = new Date();
+        const input = {
+            _id: batch,
+            eTag: JSON.parse(head.ETag), // Required to remove double escape by AWS
+            total: total,
+            processingStart
+        };
+
+        if (total === 0) input.processingEnd = input.processingStart;
+
         await fetcher(params.get(`/api/url-${STAGE}`), {
             query: `
                 mutation UpdateBatch($input: UpdateBatchInput!){
@@ -81,15 +91,13 @@ export default async function handler() {
                     }
                 }
             `,
-            variables: {
-                input: {
-                    _id: batch,
-                    eTag: JSON.parse(head.ETag), // Required to remove double escape by AWS
-                    total: total,
-                    processingStart: new Date()
-                }
-            }
+            variables: { input }
         });
+
+        if (total === 0) {
+            console.log('ok - no image files to process');
+            return;
+        }
 
         await cf.send(new CloudFormation.CreateStackCommand({
             StackName,
@@ -105,20 +113,20 @@ export default async function handler() {
 
         await monitor(StackName);
 
-        const zip = new StreamZip.async({
+        const prezip = new StreamZip.async({
             file: path.resolve(os.tmpdir(), 'input.zip'),
             skipEntryNameValidation: true
         });
 
-        const entries = await zip.entries();
-        for (const entrykey in entries) {
-            const entry = entries[entrykey];
+        const preentries = await prezip.entries();
+        for (const entrykey in preentries) {
+            const entry = preentries[entrykey];
             const parsed = path.parse(entry.name);
             if (!parsed.ext) continue;
             if (parsed.base[0] === '.') continue;
             if (!SUPPORTED_FILE_TYPES.includes(parsed.ext)) continue;
 
-            const data = await zip.entryData(entry);
+            const data = await prezip.entryData(entry);
             // Ensure if there are images with the same name they don't clobber on s3
             const key = crypto.createHash('md5').update(data).digest('hex');
 
@@ -130,7 +138,7 @@ export default async function handler() {
             }));
         }
 
-        zip.close();
+        prezip.close();
 
         await s3.send(new S3.DeleteObjectCommand({
             Bucket: task.Bucket,
