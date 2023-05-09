@@ -1,5 +1,6 @@
 import CloudFormation from '@aws-sdk/client-cloudformation';
 import SSM from '@aws-sdk/client-ssm';
+import moment from 'moment';
 
 const APIKEY = process.env.APIKEY;
 
@@ -16,11 +17,10 @@ export async function handler(event) {
         StackName =  alarm.replace('-sqs-empty', '');
         batch = `batch-${StackName.replace(/^.*-batch-/, '')}`;
     } else if (event.batch) {
-        StackName = `animl-ingest-${process.env.STAGE}-${event.batch}`;
+        StackName = `animl-ingest-${STAGE}-${event.batch}`;
         batch = event.batch;
     } else if (event.source) {
-        console.error('Scheduled Event');
-        return;
+        return await scheduledDelete(STAGE);
     } else {
         throw new Error('Unknown Event Type');
     }
@@ -97,6 +97,31 @@ export async function handler(event) {
     }
 }
 
+async function scheduledDelete(stage) {
+    const cf = new CloudFormation.CloudFormationClient({ region: process.env.AWS_DEFAULT_REGION || 'us-west-2' });
+
+    let stacks = [];
+    let nextToken = undefined;
+    do {
+        const res = await cf.send(new CloudFormation.ListStacksCommand({
+            NextToken: nextToken
+        }));
+
+        stacks.push(...res.StackSummaries);
+        nextToken = res.NextToken;
+    } while (nextToken);
+
+    stacks = stacks.filter((stack) => {
+        return stack.StackName.startsWith(`animl-ingest-${stage}-batch-`);
+    }).filter((stack) => {
+        return stack.StackStatus !== 'DELETE_COMPLETE';
+    }).filter((stack) => {
+        return moment(stack.CreationTime).isSameOrBefore(moment().subtract(1, 'day'))
+    });
+
+    console.error(stacks);
+}
+
 async function fetcher(url, body) {
     console.log('Posting metadata to API');
     const res = await fetch(url, {
@@ -132,5 +157,5 @@ async function fetcher(url, body) {
 
 
 if (import.meta.url === `file://${process.argv[1]}`) {
-    await handler();
+    await handler(process.env.EVENT ? JSON.parse(process.env.EVENT) : {});
 }
