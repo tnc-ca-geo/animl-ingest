@@ -1,5 +1,5 @@
 import Enum from 'enum';
-import rimraf from 'rimraf';
+import { rimraf } from 'rimraf';
 import mime from 'mime-types';
 import sharp from 'sharp';
 
