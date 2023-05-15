@@ -117,7 +117,7 @@ async function scheduledDelete(stage) {
     }).filter((stack) => {
         return stack.StackStatus !== 'DELETE_COMPLETE';
     }).filter((stack) => {
-        return moment(stack.CreationTime).isSameOrBefore(moment().subtract(1, 'second'))
+        return moment(stack.CreationTime).isSameOrBefore(moment().subtract(24, 'hours'))
     });
 
     const cw = new CW.CloudWatchClient({ region: process.env.AWS_DEFAULT_REGION || 'us-west-2' });
