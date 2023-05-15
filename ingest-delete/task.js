@@ -120,7 +120,7 @@ async function scheduledDelete(stage) {
         return moment(stack.CreationTime).isSameOrBefore(moment().subtract(1, 'hour'))
     });
 
-    const cw = new CloudWatchClient({ region: process.env.AWS_DEFAULT_REGION || 'us-west-2' });
+    const cw = new CW.CloudWatchClient({ region: process.env.AWS_DEFAULT_REGION || 'us-west-2' });
     for (const stack of stacks) {
         const alarm = await cw.send(new DescribeAlarmsCommand({
             AlarmNames: []
