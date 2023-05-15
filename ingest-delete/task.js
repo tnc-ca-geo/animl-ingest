@@ -117,14 +117,21 @@ async function scheduledDelete(stage) {
     }).filter((stack) => {
         return stack.StackStatus !== 'DELETE_COMPLETE';
     }).filter((stack) => {
-        return moment(stack.CreationTime).isSameOrBefore(moment().subtract(1, 'hour'))
+        return moment(stack.CreationTime).isSameOrBefore(moment().subtract(1, 'second'))
     });
 
     const cw = new CW.CloudWatchClient({ region: process.env.AWS_DEFAULT_REGION || 'us-west-2' });
+    console.log(`ok - ${stacks.length} candidate stacks for deletion`);
     for (const stack of stacks) {
-        const alarm = await cw.send(new DescribeAlarmsCommand({
-            AlarmNames: []
+        console.log(`ok - checking alarm state ${stack.StackName}`);
+        const alarm = await cw.send(new CW.DescribeAlarmsCommand({
+            AlarmNames: [`${stack.StackName}-sqs-empty`]
         }));
+
+        if (alarm.MetricAlarms[0].StateValue === 'INSUFFICIENT_DATA') {
+            console.log(`ok - deleting ${stack.StackName}`);
+            await cf.send(new CloudFormation.DeleteStackCommand({ StackName: stack.StackName }));
+        }
     }
 }
 
