@@ -1,5 +1,6 @@
 import CloudFormation from '@aws-sdk/client-cloudformation';
 import SSM from '@aws-sdk/client-ssm';
+import CW from '@aws-sdk/client-cloudwatch';
 import moment from 'moment';
 
 const APIKEY = process.env.APIKEY;
@@ -116,10 +117,15 @@ async function scheduledDelete(stage) {
     }).filter((stack) => {
         return stack.StackStatus !== 'DELETE_COMPLETE';
     }).filter((stack) => {
-        return moment(stack.CreationTime).isSameOrBefore(moment().subtract(1, 'day'))
+        return moment(stack.CreationTime).isSameOrBefore(moment().subtract(1, 'hour'))
     });
 
-    console.error(stacks);
+    const cw = new CloudWatchClient({ region: process.env.AWS_DEFAULT_REGION || 'us-west-2' });
+    for (const stack of stacks) {
+        const alarm = await cw.send(new DescribeAlarmsCommand({
+            AlarmNames: []
+        }));
+    }
 }
 
 async function fetcher(url, body) {
