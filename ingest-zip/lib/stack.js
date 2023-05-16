@@ -19,9 +19,8 @@ export default class Stack {
                 PredQueue: {
                     Type: 'AWS::SQS::Queue',
                     Properties: {
-                        QueueName: cf.join([cf.stackName, '.fifo']),
+                        QueueName: cf.stackName,
                         VisibilityTimeout: 120,
-                        FifoQueue: true,
                         RedrivePolicy: {
                             deadLetterTargetArn: cf.getAtt('PredDLQ', 'Arn'),
                             maxReceiveCount: 3
@@ -31,8 +30,7 @@ export default class Stack {
                 PredDLQ: {
                     Type: 'AWS::SQS::Queue',
                     Properties: {
-                        QueueName: cf.join([cf.stackName, '-dlq.fifo']),
-                        FifoQueue: true
+                        QueueName: cf.join([cf.stackName, '-dlq'])
                     }
                 },
                 PredInference: {
