@@ -38,7 +38,7 @@ export default class Stack {
                 PredInference: {
                     Type: 'AWS::Lambda::EventSourceMapping',
                     Properties: {
-                        BatchSize: 1,
+                        BatchSize: 10,
                         Enabled: true,
                         EventSourceArn: cf.getAtt('PredQueue', 'Arn'),
                         FunctionName: `animl-api-${stage}-inference`
