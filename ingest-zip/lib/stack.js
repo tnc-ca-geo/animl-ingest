@@ -39,7 +39,8 @@ export default class Stack {
                         BatchSize: 10,
                         Enabled: true,
                         EventSourceArn: cf.getAtt('PredQueue', 'Arn'),
-                        FunctionName: `animl-api-${stage}-inference`
+                        FunctionName: `animl-api-${stage}-inference`,
+                        FunctionResponseTypes: ['ReportBatchItemFailures']
                     }
                 },
                 PredSQSAlarm: {
