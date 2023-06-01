@@ -10,6 +10,7 @@ import CloudFormation from '@aws-sdk/client-cloudformation';
 import EventStream from './lib/cfstream.js';
 import StreamZip from 'node-stream-zip';
 import Stack from './lib/stack.js';
+import asyncPool from 'tiny-async-pool';
 
 const APIKEY = process.env.APIKEY;
 
@@ -119,23 +120,31 @@ export default async function handler() {
         });
 
         const preentries = await prezip.entries();
+        const images = [];
         for (const entrykey in preentries) {
             const entry = preentries[entrykey];
+            images.push(entry);
+        }
+
+        for await (const ms of asyncPool(1000, images, async (entry) => {
             const parsed = path.parse(entry.name);
-            if (!parsed.ext) continue;
-            if (parsed.base[0] === '.') continue;
-            if (!SUPPORTED_FILE_TYPES.includes(parsed.ext)) continue;
+            if (!parsed.ext) return;
+            if (parsed.base[0] === '.') return;
+            if (!SUPPORTED_FILE_TYPES.includes(parsed.ext)) return;
 
             const data = await prezip.entryData(entry);
             // Ensure if there are images with the same name they don't clobber on s3
             const key = crypto.createHash('md5').update(data).digest('hex');
 
-            console.log(`ok - writing: ${batch}/${key}${parsed.ext}`);
             await s3.send(new S3.PutObjectCommand({
                 Bucket: task.Bucket,
                 Key: `${batch}/${key}${parsed.ext}`,
                 Body: data
             }));
+
+            return `ok - written: ${batch}/${key}${parsed.ext}`;
+        })) {
+            console.log(ms);
         }
 
         prezip.close();
@@ -175,6 +184,7 @@ export default async function handler() {
         throw err;
     }
 }
+
 
 function monitor(StackName) {
     const region = process.env.AWS_DEFAULT_REGION || 'us-west-2';
