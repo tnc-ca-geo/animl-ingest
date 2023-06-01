@@ -20,7 +20,7 @@ export default class Stack {
                     Type: 'AWS::SQS::Queue',
                     Properties: {
                         QueueName: cf.stackName,
-                        VisibilityTimeout: 120,
+                        VisibilityTimeout: 720,
                         RedrivePolicy: {
                             deadLetterTargetArn: cf.getAtt('PredDLQ', 'Arn'),
                             maxReceiveCount: 3
