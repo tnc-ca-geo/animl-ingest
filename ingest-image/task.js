@@ -148,6 +148,27 @@ export default class Task {
         } catch (err) {
             if (err.message.includes('E11000')) err.message = 'DUPLICATE_IMAGE';
             console.log(`Error saving image: ${err}`);
+
+            await fetcher(this.ANIML_API_URL, {
+                query: `
+                    mutation CreateImageError($input: CreateBatchErrorInput!) {
+                        createImageError(input: $input) {
+                            _id
+                            batch
+                            error
+                            created
+                        }
+                    }
+                `,
+                variables: {
+                    input: {
+                        error: err.message,
+                        image: md.Hash,
+                        batch: md.batchId ? md.batchId : undefined
+                    }
+                }
+            });
+
             await this.copy_to_dlb(err, md);
         }
     }
