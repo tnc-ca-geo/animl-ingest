@@ -1,5 +1,4 @@
 import os from 'os';
-import crypto from 'node:crypto';
 import path from 'path';
 import fs from 'fs';
 import { pipeline } from 'stream/promises';
@@ -133,16 +132,14 @@ export default async function handler() {
             if (!SUPPORTED_FILE_TYPES.includes(parsed.ext)) return;
 
             const data = await prezip.entryData(entry);
-            // Ensure if there are images with the same name they don't clobber on s3
-            const key = crypto.createHash('md5').update(data).digest('hex');
 
             await s3.send(new S3.PutObjectCommand({
                 Bucket: task.Bucket,
-                Key: `${batch}/${key}${parsed.ext}`,
+                Key: `${batch}/${entry.name.replace('/', '-')}`,
                 Body: data
             }));
 
-            return `ok - written: ${batch}/${key}${parsed.ext}`;
+            return `ok - written: ${batch}/${entry.name.replace('/', '-')}`;
         })) {
             console.log(ms);
         }
