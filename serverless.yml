@@ -47,6 +47,11 @@ provider:
             - !Sub "arn:aws:sqs:${AWS::Region}:${AWS::AccountId}:${AWS::StackName}-*"
         - Effect: Allow
           Action:
+            - cloudwatch:DescribeAlarms
+          Resource:
+            - !Sub "arn:aws:cloudwatch:${AWS::Region}:${AWS::AccountId}:alarm:*"
+        - Effect: Allow
+          Action:
             - cloudwatch:DeleteAlarms
           Resource:
             - !Sub 'arn:aws:cloudwatch:${AWS::Region}:${AWS::AccountId}:alarm:${AWS::StackName}-*'

@@ -134,47 +134,41 @@ export default class Task {
         console.log(`Posting metadata to API: ${JSON.stringify(md)}`);
 
         try {
-            const res = await fetch(this.ANIML_API_URL, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'x-api-key': APIKEY
-                },
-                body: JSON.stringify({
-                    query: QUERY,
-                    variables: {
-                        input: {
-                            md: md
-                        }
+            await fetcher(this.ANIML_API_URL, {
+                query: QUERY,
+                variables: {
+                    input: {
+                        md: md
                     }
-                })
-            });
-
-            if (!res.ok) {
-                const texterr = await res.text();
-                let jsonerr;
-                try {
-                    jsonerr = JSON.parse(texterr);
-                } catch (err) {
-                    throw new Error(texterr);
                 }
-
-                if (jsonerr.message) throw new Error(jsonerr.message);
-                throw new Error(texterr);
-            }
-
-            const json = await res.json();
-
-            if (json && Array.isArray(json.errors) && json.errors.length && json.errors[0].message.includes('E11000')) {
-                throw new Error('DUPLICATE_IMAGE');
-            } else if (json && Array.isArray(json.errors) && json.errors.length) {
-                throw new Error(json.errors[0].message);
-            }
+            });
 
             await this.copy_to_prod(md);
             await this.copy_to_archive(md);
         } catch (err) {
+            if (err.message.includes('E11000')) err.message = 'DUPLICATE_IMAGE';
             console.log(`Error saving image: ${err}`);
+
+            await fetcher(this.ANIML_API_URL, {
+                query: `
+                    mutation CreateImageError($input: CreateBatchErrorInput!) {
+                        createImageError(input: $input) {
+                            _id
+                            batch
+                            error
+                            created
+                        }
+                    }
+                `,
+                variables: {
+                    input: {
+                        error: err.message,
+                        image: md.Hash,
+                        batch: md.batchId ? md.batchId : undefined
+                    }
+                }
+            });
+
             await this.copy_to_dlb(err, md);
         }
     }
@@ -343,6 +337,39 @@ export default class Task {
             }
         }));
     }
+}
+
+async function fetcher(url, body) {
+    console.log('Posting metadata to API', JSON.stringify(body));
+    const res = await fetch(url, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'x-api-key': APIKEY
+        },
+        body: JSON.stringify(body)
+    });
+
+    if (!res.ok) {
+        const texterr = await res.text();
+        let jsonerr;
+        try {
+            jsonerr = JSON.parse(texterr);
+        } catch (err) {
+            throw new Error(texterr);
+        }
+
+        if (jsonerr.message) throw new Error(jsonerr.message);
+        throw new Error(texterr);
+    }
+
+    const json = await res.json();
+
+    if (json && Array.isArray(json.errors) && json.errors.length) {
+        throw new Error(json.errors[0].message);
+    }
+
+    return json;
 }
 
 export async function handler(event) {

@@ -19,9 +19,8 @@ export default class Stack {
                 PredQueue: {
                     Type: 'AWS::SQS::Queue',
                     Properties: {
-                        QueueName: cf.join([cf.stackName, '.fifo']),
-                        VisibilityTimeout: 120,
-                        FifoQueue: true,
+                        QueueName: cf.stackName,
+                        VisibilityTimeout: 720,
                         RedrivePolicy: {
                             deadLetterTargetArn: cf.getAtt('PredDLQ', 'Arn'),
                             maxReceiveCount: 3
@@ -31,17 +30,17 @@ export default class Stack {
                 PredDLQ: {
                     Type: 'AWS::SQS::Queue',
                     Properties: {
-                        QueueName: cf.join([cf.stackName, '-dlq.fifo']),
-                        FifoQueue: true
+                        QueueName: cf.join([cf.stackName, '-dlq'])
                     }
                 },
                 PredInference: {
                     Type: 'AWS::Lambda::EventSourceMapping',
                     Properties: {
-                        BatchSize: 1,
+                        BatchSize: 10,
                         Enabled: true,
                         EventSourceArn: cf.getAtt('PredQueue', 'Arn'),
-                        FunctionName: `animl-api-${stage}-inference`
+                        FunctionName: `animl-api-${stage}-batchinference`,
+                        FunctionResponseTypes: ['ReportBatchItemFailures']
                     }
                 },
                 PredSQSAlarm: {
