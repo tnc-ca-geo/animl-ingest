@@ -23,7 +23,7 @@ export default class Stack {
                         VisibilityTimeout: 720,
                         RedrivePolicy: {
                             deadLetterTargetArn: cf.getAtt('PredDLQ', 'Arn'),
-                            maxReceiveCount: 3
+                            maxReceiveCount: 5
                         }
                     }
                 },
