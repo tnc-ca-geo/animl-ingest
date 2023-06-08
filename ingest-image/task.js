@@ -124,8 +124,9 @@ export default class Task {
     async save_image(md) {
         console.log(`Posting metadata to API: ${JSON.stringify(md)}`);
 
+        let image_id;
         try {
-            await fetcher(this.ANIML_API_URL, {
+            image_id = (await fetcher(this.ANIML_API_URL, {
                 query: `
                     mutation CreateImageRecord($input: CreateImageInput!){
                         createImage(input: $input) {
@@ -140,7 +141,7 @@ export default class Task {
                         md: md
                     }
                 }
-            });
+            })).data.createImage.image._id;
 
             await this.copy_to_prod(md);
             await this.copy_to_archive(md);
@@ -148,25 +149,27 @@ export default class Task {
             if (err.message.includes('E11000')) err.message = 'DUPLICATE_IMAGE';
             console.log(`Error saving image: ${err}`);
 
-            await fetcher(this.ANIML_API_URL, {
-                query: `
-                    mutation CreateImageError($input: CreateBatchErrorInput!) {
-                        createImageError(input: $input) {
-                            _id
-                            batch
-                            error
-                            created
+            if (image_id) {
+                await fetcher(this.ANIML_API_URL, {
+                    query: `
+                        mutation CreateImageError($input: CreateBatchErrorInput!) {
+                            createImageError(input: $input) {
+                                _id
+                                batch
+                                error
+                                created
+                            }
+                        }
+                    `,
+                    variables: {
+                        input: {
+                            error: err.message,
+                            image: md.Hash,
+                            batch: md.batchId ? md.batchId : undefined
                         }
                     }
-                `,
-                variables: {
-                    input: {
-                        error: err.message,
-                        image: md.Hash,
-                        batch: md.batchId ? md.batchId : undefined
-                    }
-                }
-            });
+                });
+            }
 
             await this.copy_to_dlb(err, md);
         }
