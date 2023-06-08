@@ -23,15 +23,6 @@ const region = process.env.AWS_DEFAULT_REGION || 'us-west-2';
 const IngestType = new Enum(['NONE', 'IMAGE', 'BATCH'], 'IngestType');
 
 const APIKEY = process.env.APIKEY;
-const QUERY = `
-    mutation CreateImageRecord($input: CreateImageInput!){
-        createImage(input: $input) {
-            image {
-                _id
-            }
-        }
-    }
-`;
 
 export default class Task {
     constructor(stage = 'dev') {
@@ -135,7 +126,15 @@ export default class Task {
 
         try {
             await fetcher(this.ANIML_API_URL, {
-                query: QUERY,
+                query: `
+                    mutation CreateImageRecord($input: CreateImageInput!){
+                        createImage(input: $input) {
+                            image {
+                                _id
+                            }
+                        }
+                    }
+                `,
                 variables: {
                     input: {
                         md: md
@@ -289,7 +288,13 @@ export default class Task {
         md.ArchiveBucket = this.ARCHIVE_BUCKET;
         md.ProdBucket = this.SERVING_BUCKET;
         md.Hash = await this.hash(md.FileName);
+        md.ImageBytes = await this.byte_size(`${this.tmp_dir}/${md.FileName}`);
+
         return md;
+    }
+
+    async byte_size(file) {
+        return (await fsp.stat(file)).size;
     }
 
     validate(file_name) {
