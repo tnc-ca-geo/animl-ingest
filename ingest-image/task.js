@@ -143,6 +143,7 @@ export default class Task {
                 }
             })).data.createImage.image._id;
 
+            md._id = image_id;
             await this.copy_to_prod(md);
             await this.copy_to_archive(md);
         } catch (err) {
@@ -193,7 +194,7 @@ export default class Task {
     async copy_to_archive(md) {
         const Bucket = md['ArchiveBucket'];
         const parse = path.parse(md.FileName);
-        const archive_filename = parse.name + '_' + md['Hash'] + parse.ext;
+        const archive_filename = parse.name + '_' + md['_id'] + parse.ext;
         const Key = path.join(String(md['SerialNumber']), archive_filename);
 
         console.log(`Transferring s3://${Bucket}/${Key}`);
@@ -225,7 +226,7 @@ export default class Task {
 
         for (const size in this.IMG_SIZES) {
             // create filename and key
-            const filename = `${md.Hash}-${size}.${md.FileTypeExtension}`;
+            const filename = `${md._id}-${size}.${md.FileTypeExtension}`;
             const Key = path.join(size, filename);
             console.log(`Transferring ${Key} to ${Bucket}`);
 
