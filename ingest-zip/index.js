@@ -64,7 +64,7 @@ export default async function handler() {
             const parsed = path.parse(entry.name);
             if (!parsed.ext) continue;
             if (parsed.base[0] === '.') continue;
-            if (!SUPPORTED_FILE_TYPES.includes(parsed.ext)) continue;
+            if (!SUPPORTED_FILE_TYPES.includes(parsed.ext.toLowerCase())) continue;
             total++;
         }
 
@@ -129,7 +129,7 @@ export default async function handler() {
             const parsed = path.parse(entry.name);
             if (!parsed.ext) return;
             if (parsed.base[0] === '.') return;
-            if (!SUPPORTED_FILE_TYPES.includes(parsed.ext)) return;
+            if (!SUPPORTED_FILE_TYPES.includes(parsed.ext.toLowerCase())) return;
 
             const data = await prezip.entryData(entry);
 

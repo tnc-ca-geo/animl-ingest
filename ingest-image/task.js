@@ -302,7 +302,7 @@ export default class Task {
     }
 
     validate(file_name) {
-        const ext = path.parse(file_name).ext;
+        const ext = path.parse(file_name).ext.toLowerCase();
 
         if (this.SUPPORTED_FILE_TYPES.includes(ext)) {
             return IngestType.IMAGE;
