@@ -164,7 +164,7 @@ export default class Task {
                     variables: {
                         input: {
                             error: err.message,
-                            image: md.Hash,
+                            image: image_id,
                             batch: md.batchId ? md.batchId : undefined
                         }
                     }
