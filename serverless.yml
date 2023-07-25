@@ -103,7 +103,7 @@ functions:
     image:
       name: image
     name: IngestImage-${opt:stage, self:provider.stage, 'dev'}
-    reservedConcurrency: 30
+    reservedConcurrency: 100
     maximumRetryAttempts: 0
     timeout: 15
     events:
