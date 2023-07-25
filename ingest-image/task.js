@@ -23,15 +23,6 @@ const region = process.env.AWS_DEFAULT_REGION || 'us-west-2';
 const IngestType = new Enum(['NONE', 'IMAGE', 'BATCH'], 'IngestType');
 
 const APIKEY = process.env.APIKEY;
-const QUERY = `
-    mutation CreateImageRecord($input: CreateImageInput!){
-        createImage(input: $input) {
-            image {
-                _id
-            }
-        }
-    }
-`;
 
 export default class Task {
     constructor(stage = 'dev') {
@@ -133,41 +124,53 @@ export default class Task {
     async save_image(md) {
         console.log(`Posting metadata to API: ${JSON.stringify(md)}`);
 
+        let image_id;
         try {
-            await fetcher(this.ANIML_API_URL, {
-                query: QUERY,
+            image_id = (await fetcher(this.ANIML_API_URL, {
+                query: `
+                    mutation CreateImageRecord($input: CreateImageInput!){
+                        createImage(input: $input) {
+                            image {
+                                _id
+                            }
+                        }
+                    }
+                `,
                 variables: {
                     input: {
                         md: md
                     }
                 }
-            });
+            })).data.createImage.image._id;
 
+            md._id = image_id;
             await this.copy_to_prod(md);
             await this.copy_to_archive(md);
         } catch (err) {
             if (err.message.includes('E11000')) err.message = 'DUPLICATE_IMAGE';
             console.log(`Error saving image: ${err}`);
 
-            await fetcher(this.ANIML_API_URL, {
-                query: `
-                    mutation CreateImageError($input: CreateBatchErrorInput!) {
-                        createImageError(input: $input) {
-                            _id
-                            batch
-                            error
-                            created
+            if (image_id) {
+                await fetcher(this.ANIML_API_URL, {
+                    query: `
+                        mutation CreateImageError($input: CreateBatchErrorInput!) {
+                            createImageError(input: $input) {
+                                _id
+                                batch
+                                error
+                                created
+                            }
+                        }
+                    `,
+                    variables: {
+                        input: {
+                            error: err.message,
+                            image: image_id,
+                            batch: md.batchId ? md.batchId : undefined
                         }
                     }
-                `,
-                variables: {
-                    input: {
-                        error: err.message,
-                        image: md.Hash,
-                        batch: md.batchId ? md.batchId : undefined
-                    }
-                }
-            });
+                });
+            }
 
             await this.copy_to_dlb(err, md);
         }
@@ -191,7 +194,7 @@ export default class Task {
     async copy_to_archive(md) {
         const Bucket = md['ArchiveBucket'];
         const parse = path.parse(md.FileName);
-        const archive_filename = parse.name + '_' + md['Hash'] + parse.ext;
+        const archive_filename = parse.name + '_' + md['_id'] + parse.ext;
         const Key = path.join(String(md['SerialNumber']), archive_filename);
 
         console.log(`Transferring s3://${Bucket}/${Key}`);
@@ -223,7 +226,7 @@ export default class Task {
 
         for (const size in this.IMG_SIZES) {
             // create filename and key
-            const filename = `${md.Hash}-${size}.${md.FileTypeExtension}`;
+            const filename = `${md._id}-${size}.${md.FileTypeExtension}`;
             const Key = path.join(size, filename);
             console.log(`Transferring ${Key} to ${Bucket}`);
 
@@ -289,11 +292,17 @@ export default class Task {
         md.ArchiveBucket = this.ARCHIVE_BUCKET;
         md.ProdBucket = this.SERVING_BUCKET;
         md.Hash = await this.hash(md.FileName);
+        md.ImageBytes = await this.byte_size(`${this.tmp_dir}/${md.FileName}`);
+
         return md;
     }
 
+    async byte_size(file) {
+        return (await fsp.stat(file)).size;
+    }
+
     validate(file_name) {
-        const ext = path.parse(file_name).ext;
+        const ext = path.parse(file_name).ext.toLowerCase();
 
         if (this.SUPPORTED_FILE_TYPES.includes(ext)) {
             return IngestType.IMAGE;
