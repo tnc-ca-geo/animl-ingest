@@ -291,7 +291,7 @@ export default class Task {
             md.DateTimeOriginal = this.convert_datetime_to_ISO(md.DateTimeOriginal);
         } catch (err) {
             console.warn(`not ok - could not parse DateTimeOriginal: ${md.DateTimeOriginal}: ${err.message}`);
-            md.DateTimeOriginal = 'unknown'
+            md.DateTimeOriginal = 'unknown';
         }
 
         md.MIMEType = md.MIMEType || mimetype || 'image/jpeg';
