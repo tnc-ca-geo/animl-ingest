@@ -286,7 +286,14 @@ export default class Task {
 
         const file_ext = path.parse(md.FileName).ext;
         md.FileTypeExtension = md.FileTypeExtension ? md.FileTypeExtension.toLowerCase() : file_ext;
-        md.DateTimeOriginal = this.convert_datetime_to_ISO(md.DateTimeOriginal);
+
+        try {
+            md.DateTimeOriginal = this.convert_datetime_to_ISO(md.DateTimeOriginal);
+        } catch (err) {
+            console.warn(`not ok - could not parse DateTimeOriginal: ${md.DateTimeOriginal}: ${err.message}`);
+            md.DateTimeOriginal = 'unknown'
+        }
+
         md.MIMEType = md.MIMEType || mimetype || 'image/jpeg';
         md.SerialNumber = md.SerialNumber || 'unknown';
         md.ArchiveBucket = this.ARCHIVE_BUCKET;
