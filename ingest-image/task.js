@@ -11,7 +11,7 @@ import SSM from '@aws-sdk/client-ssm';
 import time from 'strtime';
 const strptime = time.strptime;
 
-import os from 'node:os';
+import os, { type } from 'node:os';
 import path from 'node:path';
 import { createHash } from 'node:crypto';
 import { pipeline } from 'node:stream/promises';
@@ -122,16 +122,18 @@ export default class Task {
     }
 
     async save_image(md) {
-        console.log(`Posting metadata to API: ${JSON.stringify(md)}`);
-
         let image_id;
         try {
-            image_id = (await fetcher(this.ANIML_API_URL, {
+            const imageAttempt = (await fetcher(this.ANIML_API_URL, {
                 query: `
                     mutation CreateImageRecord($input: CreateImageInput!){
                         createImage(input: $input) {
-                            image {
+                            imageAttempt {
                                 _id
+                                errors {
+                                  _id
+                                  error
+                                }
                             }
                         }
                     }
@@ -141,12 +143,24 @@ export default class Task {
                         md: md
                     }
                 }
-            })).data.createImage.image._id;
+            })).data.createImage.imageAttempt;
+            console.log(`createImage res: ${JSON.stringify(imageAttempt)}`);
 
-            md._id = image_id;
-            await this.copy_to_prod(md);
-            await this.copy_to_archive(md);
+            md._id = imageAttempt._id
+
+            if (imageAttempt.errors.length) {
+                console.log(`The API returned errors: ${JSON.stringify(imageAttempt.errors)}`);
+                await this.copy_to_dlb(imageAttempt.errors[0].error, md);
+            } else {
+                await this.copy_to_prod(md);
+                await this.copy_to_archive(md);
+            }
+
         } catch (err) {
+            // TODO: I think this block is no longer relevant? If we're creating
+            // the ImageErrors on the API side? Or is this for uncontrolled errors?
+            // Check with Nick
+
             if (err.message.includes('E11000')) err.message = 'DUPLICATE_IMAGE';
             console.log(`Error saving image: ${err}`);
 
