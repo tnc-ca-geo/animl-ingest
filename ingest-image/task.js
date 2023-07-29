@@ -150,7 +150,8 @@ export default class Task {
 
             if (imageAttempt.errors.length) {
                 console.log(`The API returned errors: ${JSON.stringify(imageAttempt.errors)}`);
-                await this.copy_to_dlb(imageAttempt.errors[0].error, md);
+                const err = new Error(imageAttempt.errors[0].error);
+                await this.copy_to_dlb(err, md);
             } else {
                 await this.copy_to_prod(md);
                 await this.copy_to_archive(md);
@@ -301,11 +302,8 @@ export default class Task {
         const file_ext = path.parse(md.FileName).ext;
         md.FileTypeExtension = md.FileTypeExtension ? md.FileTypeExtension.toLowerCase() : file_ext;
 
-        try {
-            md.DateTimeOriginal = this.convert_datetime_to_ISO(md.DateTimeOriginal);
-        } catch (err) {
-            console.warn(`not ok - could not parse DateTimeOriginal: ${md.DateTimeOriginal}: ${err.message}`);
-            md.DateTimeOriginal = 'unknown';
+        if (md.DateTimeOriginal) {
+          md.DateTimeOriginal = this.convert_datetime_to_ISO(md.DateTimeOriginal);
         }
 
         md.MIMEType = md.MIMEType || mimetype || 'image/jpeg';
