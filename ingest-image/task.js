@@ -11,7 +11,7 @@ import SSM from '@aws-sdk/client-ssm';
 import time from 'strtime';
 const strptime = time.strptime;
 
-import os, { type } from 'node:os';
+import os from 'node:os';
 import path from 'node:path';
 import { createHash } from 'node:crypto';
 import { pipeline } from 'node:stream/promises';
@@ -145,8 +145,8 @@ export default class Task {
             })).data.createImage.imageAttempt;
             console.log(`createImage res: ${JSON.stringify(imageAttempt)}`);
 
-            md._id = imageAttempt._id
-            const errors = imageAttempt.errors
+            md._id = imageAttempt._id;
+            const errors = imageAttempt.errors;
 
             if (errors.length) {
                 console.log(`The API returned errors: ${JSON.stringify(errors)}`);
@@ -160,36 +160,36 @@ export default class Task {
             }
 
         } catch (err) {
-            // backstop for unforeseen errors returned by the API 
-            // and errors resizing/copying the image to prod buckets. 
-            // Controlled errors during image record creation are returned 
+            // backstop for unforeseen errors returned by the API
+            // and errors resizing/copying the image to prod buckets.
+            // Controlled errors during image record creation are returned
             // to in the imageAttempt.errors payload and handled above
 
             console.error(`Error saving image: ${err}`);
 
             if (md._id) {
-              await fetcher(this.ANIML_API_URL, {
-                  query: `
-                      mutation CreateImageError($input: CreateImageErrorInput!) {
-                          createImageError(input: $input) {
-                              _id
-                              batch
-                              error
-                              created
-                          }
-                      }
-                  `,
-                  variables: {
-                      input: {
-                          error: err.message,
-                          image: md._id,
-                          batch: md.batchId ? md.batchId : undefined
-                      }
-                  }
-              });
-          }
+                await fetcher(this.ANIML_API_URL, {
+                    query: `
+                        mutation CreateImageError($input: CreateImageErrorInput!) {
+                            createImageError(input: $input) {
+                                _id
+                                batch
+                                error
+                                created
+                            }
+                        }
+                    `,
+                    variables: {
+                        input: {
+                            error: err.message,
+                            image: md._id,
+                            batch: md.batchId ? md.batchId : undefined
+                        }
+                    }
+                });
+            }
 
-          await this.copy_to_dlb(err, md);
+            await this.copy_to_dlb(err, md);
         }
     }
 
@@ -197,7 +197,7 @@ export default class Task {
         const Bucket = this.DEADLETTER_BUCKET;
 
         if (err.message.toLowerCase().includes('corrupt')) {
-          err.message = 'CORRUPTED_IMAGE_FILE';
+            err.message = 'CORRUPTED_IMAGE_FILE';
         }
         const Key = path.join((err.message || 'UNKNOWN_ERROR'), (md._id || 'UNKNOWN_ID'), path.parse(md.FileName).base);
         console.log(`Transferring s3://${Bucket}/${Key}`);
@@ -308,7 +308,7 @@ export default class Task {
         md.FileTypeExtension = md.FileTypeExtension ? md.FileTypeExtension.toLowerCase() : file_ext;
 
         if (md.DateTimeOriginal) {
-          md.DateTimeOriginal = this.convert_datetime_to_ISO(md.DateTimeOriginal);
+            md.DateTimeOriginal = this.convert_datetime_to_ISO(md.DateTimeOriginal);
         }
 
         md.MIMEType = md.MIMEType || mimetype || 'image/jpeg';
