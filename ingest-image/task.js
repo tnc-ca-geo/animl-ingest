@@ -160,18 +160,45 @@ export default class Task {
             }
 
         } catch (err) {
-            // backstop for unforeseen errors returned by the API. Controlled errors
-            // are returned to in the imageAttempt.errors payload and handled above
+            // backstop for unforeseen errors returned by the API 
+            // and errors resizing/copying the image to prod buckets. 
+            // Controlled errors during image record creation are returned 
+            // to in the imageAttempt.errors payload and handled above
+
             console.error(`Error saving image: ${err}`);
-            console.trace();
-            await this.copy_to_dlb(err, md);
-            throw err;
+
+            if (md._id) {
+              await fetcher(this.ANIML_API_URL, {
+                  query: `
+                      mutation CreateImageError($input: CreateImageErrorInput!) {
+                          createImageError(input: $input) {
+                              _id
+                              batch
+                              error
+                              created
+                          }
+                      }
+                  `,
+                  variables: {
+                      input: {
+                          error: err.message,
+                          image: md._id,
+                          batch: md.batchId ? md.batchId : undefined
+                      }
+                  }
+              });
+          }
+
+          await this.copy_to_dlb(err, md);
         }
     }
 
     async copy_to_dlb(err, md) {
         const Bucket = this.DEADLETTER_BUCKET;
 
+        if (err.message.toLowerCase().includes('corrupt')) {
+          err.message = 'CORRUPTED_IMAGE_FILE';
+        }
         const Key = path.join((err.message || 'UNKNOWN_ERROR'), (md._id || 'UNKNOWN_ID'), path.parse(md.FileName).base);
         console.log(`Transferring s3://${Bucket}/${Key}`);
 
