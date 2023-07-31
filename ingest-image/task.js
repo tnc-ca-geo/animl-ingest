@@ -149,7 +149,6 @@ export default class Task {
             const errors = imageAttempt.errors;
 
             if (errors.length) {
-                console.log(`The API returned errors: ${JSON.stringify(errors)}`);
                 let msg = (errors.length === 1) ? errors[0].error : 'MULTIPLE_ERRORS';
                 if (msg.includes('E11000')) msg = 'DUPLICATE_IMAGE';
                 const err = new Error(msg);
