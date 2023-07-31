@@ -146,11 +146,15 @@ export default class Task {
             })).data.createImage.imageAttempt;
             console.log(`createImage res: ${JSON.stringify(imageAttempt)}`);
 
+            image_id = imageAttempt._id;
             md._id = imageAttempt._id
+            const errors = imageAttempt.errors
 
-            if (imageAttempt.errors.length) {
-                console.log(`The API returned errors: ${JSON.stringify(imageAttempt.errors)}`);
-                const err = new Error(imageAttempt.errors[0].error);
+            if (errors.length) {
+                console.log(`The API returned errors: ${JSON.stringify(errors)}`);
+                let msg = (errors.length === 1) ? errors[0].error : 'MULTIPLE_ERRORS';
+                if (msg.includes('E11000')) msg = 'DUPLICATE_IMAGE';
+                const err = new Error(msg);
                 await this.copy_to_dlb(err, md);
             } else {
                 await this.copy_to_prod(md);
@@ -158,36 +162,12 @@ export default class Task {
             }
 
         } catch (err) {
-            // TODO: I think this block is no longer relevant? If we're creating
-            // the ImageErrors on the API side? Or is this for uncontrolled errors?
-            // Check with Nick
-
-            if (err.message.includes('E11000')) err.message = 'DUPLICATE_IMAGE';
-            console.log(`Error saving image: ${err}`);
-
-            if (image_id) {
-                await fetcher(this.ANIML_API_URL, {
-                    query: `
-                        mutation CreateImageError($input: CreateBatchErrorInput!) {
-                            createImageError(input: $input) {
-                                _id
-                                batch
-                                error
-                                created
-                            }
-                        }
-                    `,
-                    variables: {
-                        input: {
-                            error: err.message,
-                            image: image_id,
-                            batch: md.batchId ? md.batchId : undefined
-                        }
-                    }
-                });
-            }
-
+            // backstop for unforeseen errors returned by the API. Controlled errors
+            // are returned to in the imageAttempt.errors payload and handled above
+            console.error(`Error saving image: ${err}`);
+            console.trace();
             await this.copy_to_dlb(err, md);
+            throw err;
         }
     }
 
