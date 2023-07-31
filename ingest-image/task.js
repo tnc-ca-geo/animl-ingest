@@ -122,16 +122,17 @@ export default class Task {
     }
 
     async save_image(md) {
-        console.log(`Posting metadata to API: ${JSON.stringify(md)}`);
-
-        let image_id;
         try {
-            image_id = (await fetcher(this.ANIML_API_URL, {
+            const imageAttempt = (await fetcher(this.ANIML_API_URL, {
                 query: `
                     mutation CreateImageRecord($input: CreateImageInput!){
                         createImage(input: $input) {
-                            image {
+                            imageAttempt {
                                 _id
+                                errors {
+                                  _id
+                                  error
+                                }
                             }
                         }
                     }
@@ -141,19 +142,34 @@ export default class Task {
                         md: md
                     }
                 }
-            })).data.createImage.image._id;
+            })).data.createImage.imageAttempt;
+            console.log(`createImage res: ${JSON.stringify(imageAttempt)}`);
 
-            md._id = image_id;
-            await this.copy_to_prod(md);
-            await this.copy_to_archive(md);
+            md._id = imageAttempt._id;
+            const errors = imageAttempt.errors;
+
+            if (errors.length) {
+                let msg = (errors.length === 1) ? errors[0].error : 'MULTIPLE_ERRORS';
+                if (msg.includes('E11000')) msg = 'DUPLICATE_IMAGE';
+                const err = new Error(msg);
+                await this.copy_to_dlb(err, md);
+            } else {
+                await this.copy_to_prod(md);
+                await this.copy_to_archive(md);
+            }
+
         } catch (err) {
-            if (err.message.includes('E11000')) err.message = 'DUPLICATE_IMAGE';
-            console.log(`Error saving image: ${err}`);
+            // backstop for unforeseen errors returned by the API
+            // and errors resizing/copying the image to prod buckets.
+            // Controlled errors during image record creation are returned
+            // to in the imageAttempt.errors payload and handled above
 
-            if (image_id) {
+            console.error(`Error saving image: ${err}`);
+
+            if (md._id) {
                 await fetcher(this.ANIML_API_URL, {
                     query: `
-                        mutation CreateImageError($input: CreateBatchErrorInput!) {
+                        mutation CreateImageError($input: CreateImageErrorInput!) {
                             createImageError(input: $input) {
                                 _id
                                 batch
@@ -165,7 +181,7 @@ export default class Task {
                     variables: {
                         input: {
                             error: err.message,
-                            image: image_id,
+                            image: md._id,
                             batch: md.batchId ? md.batchId : undefined
                         }
                     }
@@ -179,7 +195,10 @@ export default class Task {
     async copy_to_dlb(err, md) {
         const Bucket = this.DEADLETTER_BUCKET;
 
-        const Key = path.join((err.message || 'UNKNOWN_ERROR'), path.parse(md.FileName).base);
+        if (err.message.toLowerCase().includes('corrupt')) {
+            err.message = 'CORRUPTED_IMAGE_FILE';
+        }
+        const Key = path.join((err.message || 'UNKNOWN_ERROR'), (md._id || 'UNKNOWN_ID'), path.parse(md.FileName).base);
         console.log(`Transferring s3://${Bucket}/${Key}`);
 
         const s3 = new S3.S3Client({ region });
@@ -287,11 +306,8 @@ export default class Task {
         const file_ext = path.parse(md.FileName).ext;
         md.FileTypeExtension = md.FileTypeExtension ? md.FileTypeExtension.toLowerCase() : file_ext;
 
-        try {
+        if (md.DateTimeOriginal) {
             md.DateTimeOriginal = this.convert_datetime_to_ISO(md.DateTimeOriginal);
-        } catch (err) {
-            console.warn(`not ok - could not parse DateTimeOriginal: ${md.DateTimeOriginal}: ${err.message}`);
-            md.DateTimeOriginal = 'unknown';
         }
 
         md.MIMEType = md.MIMEType || mimetype || 'image/jpeg';
