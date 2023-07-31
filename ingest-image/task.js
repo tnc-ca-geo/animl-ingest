@@ -122,7 +122,6 @@ export default class Task {
     }
 
     async save_image(md) {
-        let image_id;
         try {
             const imageAttempt = (await fetcher(this.ANIML_API_URL, {
                 query: `
@@ -146,7 +145,6 @@ export default class Task {
             })).data.createImage.imageAttempt;
             console.log(`createImage res: ${JSON.stringify(imageAttempt)}`);
 
-            image_id = imageAttempt._id;
             md._id = imageAttempt._id
             const errors = imageAttempt.errors
 
@@ -174,7 +172,7 @@ export default class Task {
     async copy_to_dlb(err, md) {
         const Bucket = this.DEADLETTER_BUCKET;
 
-        const Key = path.join((err.message || 'UNKNOWN_ERROR'), path.parse(md.FileName).base);
+        const Key = path.join((err.message || 'UNKNOWN_ERROR'), (md._id || 'UNKNOWN_ID'), path.parse(md.FileName).base);
         console.log(`Transferring s3://${Bucket}/${Key}`);
 
         const s3 = new S3.S3Client({ region });
