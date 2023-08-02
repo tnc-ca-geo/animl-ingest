@@ -316,6 +316,7 @@ export default class Task {
         md.ProdBucket = this.SERVING_BUCKET;
         md.Hash = await this.hash(md.FileName);
         md.ImageBytes = await this.byte_size(`${this.tmp_dir}/${md.FileName}`);
+        md.Path = md.batchId ? md.Key.replace(md.batchId + '/', '') : null;
 
         return md;
     }
