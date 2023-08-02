@@ -139,7 +139,7 @@ export default async function handler() {
                 Body: data
             }));
 
-            return `ok - written: ${batch}/${entry.name.replace('/', '-')}`;
+            return `ok - written: ${batch}/${entry.name}`;
         })) {
             console.log(ms);
         }
