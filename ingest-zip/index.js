@@ -135,7 +135,7 @@ export default async function handler() {
 
             await s3.send(new S3.PutObjectCommand({
                 Bucket: task.Bucket,
-                Key: `${batch}/${entry.name.replace('/', '-')}`,
+                Key: `${batch}/${entry.name}`,
                 Body: data
             }));
 
