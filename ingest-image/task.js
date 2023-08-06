@@ -182,6 +182,7 @@ export default class Task {
                         input: {
                             error: err.message,
                             image: md._id,
+                            path: md.path || md.fileName,
                             batch: md.batchId ? md.batchId : undefined
                         }
                     }

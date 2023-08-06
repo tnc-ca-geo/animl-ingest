@@ -73,7 +73,6 @@ export default async function handler() {
         const processingStart = new Date();
         const input = {
             _id: batch,
-            eTag: JSON.parse(head.ETag), // Required to remove double escape by AWS
             total: total,
             processingStart
         };
