@@ -15,6 +15,16 @@ const APIKEY = process.env.APIKEY;
 
 // If this is changed also update ingest-image
 const SUPPORTED_FILE_TYPES = ['.jpg', '.png'];
+const UPDATE_BATCH_QUERY = `
+  mutation UpdateBatch($input: UpdateBatchInput!){
+      updateBatch(input: $input) {
+          batch {
+              _id
+              total
+          }
+      }
+  }
+`;
 
 export default async function handler() {
     const task = JSON.parse(process.env.TASK);
@@ -69,34 +79,24 @@ export default async function handler() {
         }
 
         zip.close();
-
-        const processingStart = new Date();
-        const input = {
+      
+        const now = new Date();
+        let input = {
             _id: batch,
             total: total,
-            processingStart
+            uploadComplete: now
         };
-
-        if (total === 0) input.processingEnd = input.processingStart;
-
-        await fetcher(params.get(`/api/url-${STAGE}`), {
-            query: `
-                mutation UpdateBatch($input: UpdateBatchInput!){
-                    updateBatch(input: $input) {
-                        batch {
-                            _id
-                            total
-                        }
-                    }
-                }
-            `,
-            variables: { input }
-        });
 
         if (total === 0) {
             console.log('ok - no image files to process');
-            return;
+            input.processingStart = now,
+            input.processingEnd = now
         }
+
+        await fetcher(params.get(`/api/url-${STAGE}`), {
+            query: UPDATE_BATCH_QUERY,
+            variables: { input }
+        });
 
         await cf.send(new CloudFormation.CreateStackCommand({
             StackName,
@@ -111,6 +111,17 @@ export default async function handler() {
         }));
 
         await monitor(StackName);
+
+        // NOTE: testing setting processing start after CF stack build is complete
+        await fetcher(params.get(`/api/url-${STAGE}`), {
+            query: UPDATE_BATCH_QUERY,
+            variables: {
+              input: {
+                  _id: batch,
+                  processingStart: new Date()
+              }
+           }
+        });
 
         const prezip = new StreamZip.async({
             file: path.resolve(os.tmpdir(), 'input.zip'),
@@ -151,6 +162,16 @@ export default async function handler() {
         }));
 
         console.log('ok - extraction complete');
+
+        await fetcher(params.get(`/api/url-${STAGE}`), {
+            query: UPDATE_BATCH_QUERY,
+            variables: {
+              input: {
+                  _id: batch,
+                  ingestionComplete: new Date()
+              }
+            }
+        });
     } catch (err) {
         console.error(err);
 
