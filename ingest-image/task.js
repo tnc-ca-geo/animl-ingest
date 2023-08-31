@@ -61,7 +61,8 @@ export default class Task {
                 const md = {
                     Bucket: record.s3.bucket.name,
                     // Key Decode: https://docs.aws.amazon.com/lambda/latest/dg/with-s3-tutorial.html
-                    Key: decodeURIComponent(record.s3.object.key.replace(/\+/g, ' '))
+                    Key: decodeURIComponent(record.s3.object.key.replace(/\+/g, ' ')),
+                    errors: []
                 };
                 console.log(`New file detected in ${md.Bucket}: ${md.Key}`);
                 md.FileName = `${path.parse(md.Key).name}${path.parse(md.Key).ext.toLowerCase()}`;
@@ -118,7 +119,18 @@ export default class Task {
 
         const mimetype = mime.lookup(tmp_path);
         md = await this.enrich_meta_data(md, exif_data, mimetype);
+
+        try {
+            await this.sharp_meta(md);
+        } catch (err) {
+            md.errors.push('Sharp could not open provided image');
+        }
+
         await this.save_image(md);
+    }
+
+    async sharp_meta(md) {
+        return await sharp(path.join(this.tmp_dir, md.FileName)).metadata();
     }
 
     async save_image(md) {
