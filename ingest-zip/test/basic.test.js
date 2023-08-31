@@ -67,14 +67,6 @@ test('Basic', async (t) => {
             t.equals(command.input.Bucket, 'example-bucket');
 
             return Promise.resolve({});
-        } else if (command instanceof S3.HeadObjectCommand) {
-            order.push(`S3:HeadObjectCommand:${command.input.Key}`);
-
-            t.equals(command.input.Bucket, 'example-bucket');
-
-            return Promise.resolve({
-                ETag: '"123"'
-            });
         } else {
             t.fail('Unexpected Command');
         }
@@ -118,7 +110,6 @@ test('Basic', async (t) => {
 
     t.deepEquals(order, [
         'SSM:GetParametersCommand',
-        'S3:HeadObjectCommand:batch-example-key',
         'S3:GetObjectCommand:batch-example-key',
         'CloudFormation:CreateStack',
         'CloudFormation:DescribeStacksCommand',
