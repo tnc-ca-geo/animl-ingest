@@ -21,6 +21,10 @@ test('Basic', async (t) => {
         path: '/',
         method: 'POST'
     }).reply(200, { message: 'posted' });
+    mockPool.intercept({
+        path: '/',
+        method: 'POST'
+    }).reply(200, { message: 'posted' });
 
     const order = [];
     Sinon.stub(SSM.SSMClient.prototype, 'send').callsFake((command) => {
