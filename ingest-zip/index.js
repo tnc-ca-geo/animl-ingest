@@ -47,11 +47,6 @@ export default async function handler() {
             params.set(param.Name, param.Value);
         }
 
-        const head = await s3.send(new S3.HeadObjectCommand({
-            Bucket: task.Bucket,
-            Key: task.Key
-        }));
-
         await pipeline(
             (await s3.send(new S3.GetObjectCommand({
                 Bucket: task.Bucket,
@@ -79,9 +74,9 @@ export default async function handler() {
         }
 
         zip.close();
-      
+
         const now = new Date();
-        let input = {
+        const input = {
             _id: batch,
             total: total,
             uploadComplete: now
@@ -90,7 +85,7 @@ export default async function handler() {
         if (total === 0) {
             console.log('ok - no image files to process');
             input.processingStart = now,
-            input.processingEnd = now
+            input.processingEnd = now;
         }
 
         await fetcher(params.get(`/api/url-${STAGE}`), {
@@ -116,11 +111,11 @@ export default async function handler() {
         await fetcher(params.get(`/api/url-${STAGE}`), {
             query: UPDATE_BATCH_QUERY,
             variables: {
-              input: {
-                  _id: batch,
-                  processingStart: new Date()
-              }
-           }
+                input: {
+                    _id: batch,
+                    processingStart: new Date()
+                }
+            }
         });
 
         const prezip = new StreamZip.async({
@@ -166,10 +161,10 @@ export default async function handler() {
         await fetcher(params.get(`/api/url-${STAGE}`), {
             query: UPDATE_BATCH_QUERY,
             variables: {
-              input: {
-                  _id: batch,
-                  ingestionComplete: new Date()
-              }
+                input: {
+                    _id: batch,
+                    ingestionComplete: new Date()
+                }
             }
         });
     } catch (err) {
