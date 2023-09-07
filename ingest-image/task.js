@@ -24,6 +24,8 @@ const IngestType = new Enum(['NONE', 'IMAGE', 'BATCH'], 'IngestType');
 
 const APIKEY = process.env.APIKEY;
 
+const SHARP_CONFIG = { failOn: 'none' };
+
 export default class Task {
     constructor(stage = 'dev') {
         this.STAGE = stage;
@@ -130,7 +132,7 @@ export default class Task {
     }
 
     async sharp_stats(md) {
-        return await sharp(path.join(this.tmp_dir, md.FileName)).stats();
+        return await sharp(path.join(this.tmp_dir, md.FileName), SHARP_CONFIG).stats();
     }
 
     async save_image(md) {
@@ -243,7 +245,7 @@ export default class Task {
 
     async resize(md, filename, dims) {
         const tmp_path = path.join(this.tmp_dir, filename);
-        await sharp(path.join(this.tmp_dir, md.FileName))
+        await sharp(path.join(this.tmp_dir, md.FileName), SHARP_CONFIG)
             .resize(dims[0], dims[1], {
                 fit: 'inside'
             })
