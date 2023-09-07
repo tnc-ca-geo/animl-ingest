@@ -121,7 +121,7 @@ export default class Task {
         md = await this.enrich_meta_data(md, exif_data, mimetype);
 
         try {
-            await this.sharp_meta(md);
+            await this.sharp_stats(md);
         } catch (err) {
             md.errors.push('Sharp could not open provided image');
         }
@@ -129,8 +129,8 @@ export default class Task {
         await this.save_image(md);
     }
 
-    async sharp_meta(md) {
-        return await sharp(path.join(this.tmp_dir, md.FileName)).metadata();
+    async sharp_stats(md) {
+        return await sharp(path.join(this.tmp_dir, md.FileName)).stats();
     }
 
     async save_image(md) {
