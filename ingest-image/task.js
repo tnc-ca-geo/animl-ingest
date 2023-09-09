@@ -45,7 +45,6 @@ export default class Task {
         this.SSM.set(`/api/exif-function-${this.STAGE}`, 'EXIF_FUNCTION');
         this.SSM.set(`/images/batch-queue-${this.STAGE}`, 'BATCH_QUEUE');
         this.SSM.set(`/images/batch-job-${this.STAGE}`, 'BATCH_JOB');
-        this.SSM.set(`/images/archive-bucket-${this.STAGE}`, 'ARCHIVE_BUCKET');
         this.SSM.set(`/images/serving-bucket-${this.STAGE}`, 'SERVING_BUCKET');
         this.SSM.set(`/images/dead-letter-bucket-${this.STAGE}`, 'DEADLETTER_BUCKET');
         for (const ssm of this.SSM.values()) this[ssm] = null;
@@ -169,7 +168,6 @@ export default class Task {
                 await this.copy_to_dlb(err, md);
             } else {
                 await this.copy_to_prod(md);
-                await this.copy_to_archive(md);
             }
 
         } catch (err) {
@@ -223,24 +221,6 @@ export default class Task {
             Bucket: Bucket,
             Key: Key
         }));
-    }
-
-    async copy_to_archive(md) {
-        const Bucket = md['ArchiveBucket'];
-        const parse = path.parse(md.FileName);
-        const archive_filename = parse.name + '_' + md['_id'] + parse.ext;
-        const Key = path.join(String(md['SerialNumber']), archive_filename);
-
-        console.log(`Transferring s3://${Bucket}/${Key}`);
-        const s3 = new S3.S3Client({ region });
-        await s3.send(new S3.CopyObjectCommand({
-            CopySource: `${md.Bucket}/${md.Key}`,
-            ContentType: md.MIMEType,
-            Bucket: Bucket,
-            Key: Key
-        }));
-
-        return md;
     }
 
     async resize(md, filename, dims) {
@@ -327,7 +307,6 @@ export default class Task {
 
         md.MIMEType = md.MIMEType || mimetype || 'image/jpeg';
         md.SerialNumber = md.SerialNumber || 'unknown';
-        md.ArchiveBucket = this.ARCHIVE_BUCKET;
         md.ProdBucket = this.SERVING_BUCKET;
         md.Hash = await this.hash(md.FileName);
         md.ImageBytes = await this.byte_size(`${this.tmp_dir}/${md.FileName}`);
