@@ -18,6 +18,8 @@ import { pipeline } from 'node:stream/promises';
 import fs from 'node:fs';
 import fsp from 'node:fs/promises';
 
+const IN_MAINTENANCE_MODE = false;
+
 const region = process.env.AWS_DEFAULT_REGION || 'us-west-2';
 
 const IngestType = new Enum(['NONE', 'IMAGE', 'BATCH'], 'IngestType');
@@ -47,6 +49,7 @@ export default class Task {
         this.SSM.set(`/images/batch-job-${this.STAGE}`, 'BATCH_JOB');
         this.SSM.set(`/images/serving-bucket-${this.STAGE}`, 'SERVING_BUCKET');
         this.SSM.set(`/images/dead-letter-bucket-${this.STAGE}`, 'DEADLETTER_BUCKET');
+        this.SSM.set(`/images/parkinglot-bucket-${this.STAGE}`, 'PARKINGLOT_BUCKET');
         for (const ssm of this.SSM.values()) this[ssm] = null;
 
         this.tmp_dir = fs.mkdtempSync(path.join(os.tmpdir(), 'tnc-'));
@@ -59,6 +62,7 @@ export default class Task {
             await task.get_config();
 
             for (const record of event.Records) {
+
                 const md = {
                     Bucket: record.s3.bucket.name,
                     // Key Decode: https://docs.aws.amazon.com/lambda/latest/dg/with-s3-tutorial.html
@@ -115,6 +119,12 @@ export default class Task {
     }
 
     async process_image(md) {
+        if (IN_MAINTENANCE_MODE) {
+            console.log('IN_MAINTANCE_MODE detected, so copying images to parking lot bucket');
+            await this.copy_to_parkinglot(md);
+            return;
+        }
+
         const tmp_path = await this.download(md);
         const exif_data = await this.get_exif_data(md);
 
@@ -211,7 +221,22 @@ export default class Task {
             err.message = 'CORRUPTED_IMAGE_FILE';
         }
         const Key = path.join((err.message || 'UNKNOWN_ERROR'), (md._id || 'UNKNOWN_ID'), path.parse(md.FileName).base);
-        console.log(`Transferring s3://${Bucket}/${Key}`);
+        console.log(`Transferring image to s3://${Bucket}/${Key}`);
+
+        const s3 = new S3.S3Client({ region });
+        await s3.send(new S3.CopyObjectCommand({
+            CopySource: `${md.Bucket}/${md.Key}`,
+            ContentType: md.MIMEType,
+            Bucket: Bucket,
+            Key: Key
+        }));
+    }
+
+    async copy_to_parkinglot(md) {
+        const Bucket = this.PARKINGLOT_BUCKET;
+
+        const Key = md.Key;
+        console.log(`Transferring image to s3://${Bucket}/${Key}`);
 
         const s3 = new S3.S3Client({ region });
         await s3.send(new S3.CopyObjectCommand({

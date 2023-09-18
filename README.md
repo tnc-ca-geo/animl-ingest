@@ -18,7 +18,7 @@ such as [animl-base](http://github.com/tnc-ca-geo/animl-base) upload images to
 the ```animl-staging-<stage>``` bucket, a lambda function:
   - extracts EXIF metadata
   - creats a thumbnail of the image
-  - stores the thumbnail and the original in buckets for archive & production
+  - stores the thumbnail and the original in buckets for production
   access
   - passes along the metadata in a POST request to a graphQL server to create a
   record of the image metadata in a database

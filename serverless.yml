@@ -346,11 +346,11 @@ resources:
           IgnorePublicAcls: true
           RestrictPublicBuckets: true
 
-    # Archive bucket
-    S3BucketAnimlimagesarchive:
+    # Parking lot bucket
+    S3BucketAnimlimagesparkinglot:
       Type: AWS::S3::Bucket
       Properties:
-        BucketName: animl-images-archive-${opt:stage, self:provider.stage, 'dev'}
+        BucketName: animl-images-parkinglot-${opt:stage, self:provider.stage, 'dev'}
         PublicAccessBlockConfiguration:
           BlockPublicAcls: true
           BlockPublicPolicy: true
@@ -518,14 +518,14 @@ resources:
         Type: String
         Value: animl-images-serving-${opt:stage, self:provider.stage, 'dev'}
 
-    # SSM Param - archive bucket
-    SSMParameterAnimlimagesarchivebucket:
+    # SSM Param - parkinglot bucket
+    SSMParameterAnimlimagesparkinglotbucket:
       Type: AWS::SSM::Parameter
       Properties:
-        Description: Animl images archive bucket name
-        Name: /images/archive-bucket-${opt:stage, self:provider.stage, 'dev'}
+        Description: Animl images parking lot bucket name
+        Name: /images/parkinglot-bucket-${opt:stage, self:provider.stage, 'dev'}
         Type: String
-        Value: animl-images-archive-${opt:stage, self:provider.stage, 'dev'}
+        Value: animl-images-parkinglot-${opt:stage, self:provider.stage, 'dev'}
 
     # SSM Param - dead-letter bucket
     SSMParameterAnimlimagesdeadletterbucket:
