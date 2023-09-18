@@ -17,13 +17,6 @@ import { createHash } from 'node:crypto';
 import { pipeline } from 'node:stream/promises';
 import fs from 'node:fs';
 import fsp from 'node:fs/promises';
-import { fetch, setGlobalDispatcher, Agent } from 'undici';
-
-setGlobalDispatcher(new Agent({
-    connect: {
-        timeout: 10_000
-    }
-}));
 
 const region = process.env.AWS_DEFAULT_REGION || 'us-west-2';
 
@@ -374,14 +367,21 @@ export default class Task {
 
 async function fetcher(url, body) {
     console.log('Posting metadata to API', JSON.stringify(body));
+
+    const controller = new AbortController();
+    const id = setTimeout(() => controller.abort(), 10_000);
+
     const res = await fetch(url, {
         method: 'POST',
+        signal: controller.signal,
         headers: {
             'Content-Type': 'application/json',
             'x-api-key': APIKEY
         },
         body: JSON.stringify(body)
     });
+
+    clearTimeout(id);
 
     if (!res.ok) {
         const texterr = await res.text();
