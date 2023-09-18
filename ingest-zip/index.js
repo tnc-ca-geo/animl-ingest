@@ -107,7 +107,6 @@ export default async function handler() {
 
         await monitor(StackName);
 
-        // NOTE: testing setting processing start after CF stack build is complete
         await fetcher(params.get(`/api/url-${STAGE}`), {
             query: UPDATE_BATCH_QUERY,
             variables: {
