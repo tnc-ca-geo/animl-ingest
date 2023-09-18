@@ -169,7 +169,6 @@ export default class Task {
             } else {
                 await this.copy_to_prod(md);
             }
-
         } catch (err) {
             // backstop for unforeseen errors returned by the API
             // and errors resizing/copying the image to prod buckets.
@@ -368,14 +367,21 @@ export default class Task {
 
 async function fetcher(url, body) {
     console.log('Posting metadata to API', JSON.stringify(body));
+
+    const controller = new AbortController();
+    const id = setTimeout(() => controller.abort(), 10_000);
+
     const res = await fetch(url, {
         method: 'POST',
+        signal: controller.signal,
         headers: {
             'Content-Type': 'application/json',
             'x-api-key': APIKEY
         },
         body: JSON.stringify(body)
     });
+
+    clearTimeout(id);
 
     if (!res.ok) {
         const texterr = await res.text();
