@@ -17,6 +17,13 @@ import { createHash } from 'node:crypto';
 import { pipeline } from 'node:stream/promises';
 import fs from 'node:fs';
 import fsp from 'node:fs/promises';
+import { fetch, setGlobalDispatcher, Agent } from 'undici';
+
+setGlobalDispatcher(new Agent({
+    connect: {
+        timeout: 10_000
+    }
+}));
 
 const region = process.env.AWS_DEFAULT_REGION || 'us-west-2';
 
@@ -136,6 +143,8 @@ export default class Task {
 
     async save_image(md) {
         try {
+            await this.copy_to_prod(md);
+
             const imageAttempt = (await fetcher(this.ANIML_API_URL, {
                 query: `
                     mutation CreateImageRecord($input: CreateImageInput!){
@@ -166,8 +175,6 @@ export default class Task {
                 if (msg.includes('E11000')) msg = 'DUPLICATE_IMAGE';
                 const err = new Error(msg);
                 await this.copy_to_dlb(err, md);
-            } else {
-                await this.copy_to_prod(md);
             }
 
         } catch (err) {
