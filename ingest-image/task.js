@@ -120,9 +120,9 @@ export default class Task {
 
     async process_image(md) {
         if (IN_MAINTENANCE_MODE) {
-          console.log('IN_MAINTANCE_MODE, so copying images to parking lot bucket');
-          await this.copy_to_parkinglot(md);
-          return;
+            console.log('IN_MAINTANCE_MODE detected, so copying images to parking lot bucket');
+            await this.copy_to_parkinglot(md);
+            return;
         }
 
         const tmp_path = await this.download(md);
