@@ -143,8 +143,6 @@ export default class Task {
 
     async save_image(md) {
         try {
-            await this.copy_to_prod(md);
-
             const imageAttempt = (await fetcher(this.ANIML_API_URL, {
                 query: `
                     mutation CreateImageRecord($input: CreateImageInput!){
@@ -175,8 +173,9 @@ export default class Task {
                 if (msg.includes('E11000')) msg = 'DUPLICATE_IMAGE';
                 const err = new Error(msg);
                 await this.copy_to_dlb(err, md);
+            } else {
+                await this.copy_to_prod(md);
             }
-
         } catch (err) {
             // backstop for unforeseen errors returned by the API
             // and errors resizing/copying the image to prod buckets.
