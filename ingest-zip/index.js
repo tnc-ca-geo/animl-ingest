@@ -238,6 +238,8 @@ async function fetcher(url, body) {
     });
 
     if (!res.ok) {
+        console.error('ERROR: Headers:', JSON.stringify(Object.fromEntries(res.headers)));
+
         const texterr = await res.text();
         let jsonerr;
         try {
@@ -246,6 +248,7 @@ async function fetcher(url, body) {
             throw new Error(texterr);
         }
 
+        console.error('ERROR: Body:', JSON.stringify(jsonerr));
         if (jsonerr.message) throw new Error(jsonerr.message);
         throw new Error(texterr);
     }

@@ -281,6 +281,8 @@ resources:
           Environment:
             - Name: 'StackName'
               Value: !Ref "AWS::StackName"
+            - Name: 'STAGE'
+              Value: ${opt:stage, self:provider.stage, 'dev'}
             - Name: 'APIKEY'
               Value: '{{resolve:secretsmanager:api-key-${self:provider.stage}:SecretString:apikey}}'
           ResourceRequirements:
