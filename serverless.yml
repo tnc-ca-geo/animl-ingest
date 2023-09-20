@@ -336,6 +336,30 @@ resources:
           BlockPublicPolicy: true
           IgnorePublicAcls: true
           RestrictPublicBuckets: true
+        CorsConfiguration:
+          CorsRules:
+            - AllowedHeaders: [ "*" ]
+              AllowedMethods: [ "PUT" ]
+              AllowedOrigins: [ "*" ]
+              ExposeHeaders: []
+
+    # Bucket policy for animl-images-ingestion
+    S3BucketPolicyAnimlImagesIngestionBucketPolicy:
+      Type: AWS::S3::BucketPolicy
+      Properties:
+        Bucket:
+          Ref: S3BucketAnimlimagesingestion
+        PolicyDocument:
+          Statement:
+            -
+              Action:
+                - "s3:*"
+              Effect: "Allow"
+              Resource:
+                - "arn:aws:s3:::animl-images-ingestion-${opt:stage, self:provider.stage, 'dev'}/*"
+                - "arn:aws:s3:::animl-images-ingestion-${opt:stage, self:provider.stage, 'dev'}"
+              Principal:
+                AWS: "arn:aws:iam::830244800171:user/animl-base"
 
     # Serving bucket
     S3BucketAnimlimagesserving:
@@ -369,24 +393,6 @@ resources:
           BlockPublicPolicy: true
           IgnorePublicAcls: true
           RestrictPublicBuckets: true
-
-    # Bucket policy for animl-images-ingestion
-    S3BucketPolicyAnimlImagesIngestionBucketPolicy:
-      Type: AWS::S3::BucketPolicy
-      Properties:
-        Bucket:
-          Ref: S3BucketAnimlimagesingestion
-        PolicyDocument:
-          Statement:
-            -
-              Action:
-                - "s3:*"
-              Effect: "Allow"
-              Resource:
-                - "arn:aws:s3:::animl-images-ingestion-${opt:stage, self:provider.stage, 'dev'}/*"
-                - "arn:aws:s3:::animl-images-ingestion-${opt:stage, self:provider.stage, 'dev'}"
-              Principal:
-                AWS: "arn:aws:iam::830244800171:user/animl-base"
 
     # Lambda Permission grants the bucket permission to invoke the function
     LambdaPermissionAnimlimagesingestion:
