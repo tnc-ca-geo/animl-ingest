@@ -33,7 +33,7 @@ export default class Task {
         this.STAGE = stage;
 
         this.BATCH_FILE_TYPES = ['.zip'];
-        this.SUPPORTED_FILE_TYPES = ['.jpg', '.png']; // If this is changed also update ingest-image
+        this.SUPPORTED_FILE_TYPES = ['.jpg', '.jpeg', '.png']; // If this is changed also update ingest-zip
 
         this.EXIF_DATE_TIME_FORMAT = '%Y:%m:%d %H:%M:%S';
         this.IMG_SIZES = {

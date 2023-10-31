@@ -14,7 +14,7 @@ import asyncPool from 'tiny-async-pool';
 const APIKEY = process.env.APIKEY;
 
 // If this is changed also update ingest-image
-const SUPPORTED_FILE_TYPES = ['.jpg', '.png'];
+const SUPPORTED_FILE_TYPES = ['.jpg', '.jpeg', '.png'];
 const UPDATE_BATCH_QUERY = `
   mutation UpdateBatch($input: UpdateBatchInput!){
       updateBatch(input: $input) {
