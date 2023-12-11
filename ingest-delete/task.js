@@ -8,6 +8,8 @@ const APIKEY = process.env.APIKEY;
 export async function handler(event) {
     if (!event) throw new Error('Event not populated');
 
+    console.log(`ok - event: ${JSON.stringify(event)}`);
+
     const STAGE = process.env.STAGE || 'dev';
     const params = new Map();
 
