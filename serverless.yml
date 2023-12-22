@@ -346,6 +346,7 @@ resources:
             - AllowedHeaders: [ "*" ]
               AllowedMethods: [ "PUT" ]
               AllowedOrigins: [ "*" ]
+              ExposedHeaders: ['ETag']
 
     # Bucket policy for animl-images-ingestion
     S3BucketPolicyAnimlImagesIngestionBucketPolicy:
