@@ -110,7 +110,7 @@ functions:
     name: IngestImage-${opt:stage, self:provider.stage, 'dev'}
     reservedConcurrency: 100
     maximumRetryAttempts: 0
-    timeout: 15
+    timeout: 20
     events:
       - s3:
           bucket: animl-images-ingestion-${opt:stage, self:provider.stage, 'dev'}
