@@ -329,6 +329,7 @@ export default class Task {
             md.DateTimeOriginal = this.convert_datetime_to_ISO(md.DateTimeOriginal);
         }
 
+        md.Make = md.Make || 'unknown';
         md.MIMEType = md.MIMEType || mimetype || 'image/jpeg';
         md.SerialNumber = md.SerialNumber || 'unknown';
         md.ProdBucket = this.SERVING_BUCKET;
