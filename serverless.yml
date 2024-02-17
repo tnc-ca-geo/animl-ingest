@@ -12,10 +12,14 @@ provider:
     images:
       zip:
         path: ./ingest-zip/
+        platform: linux/amd64
       image:
         path: ./ingest-image/
+        platform: linux/amd64
       delete:
         path: ./ingest-delete/
+        platform: linux/amd64
+
   iam:
     role:
       managedPolicies:
