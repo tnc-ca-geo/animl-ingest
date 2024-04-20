@@ -24,7 +24,7 @@ const region = process.env.AWS_DEFAULT_REGION || 'us-west-2';
 
 const IngestType = new Enum(['NONE', 'IMAGE', 'BATCH'], 'IngestType');
 
-const APIKEY = process.env.APIKEY;
+const API_KEY = process.env.API_KEY;
 
 const SHARP_CONFIG = { failOn: 'none' };
 
@@ -440,7 +440,7 @@ async function fetcher(url, body) {
     signal: controller.signal,
     headers: {
       'Content-Type': 'application/json',
-      'x-api-key': APIKEY,
+      'x-api-key': API_KEY,
     },
     body: JSON.stringify(body),
   });

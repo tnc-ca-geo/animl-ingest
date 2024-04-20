@@ -94,7 +94,7 @@ provider:
 
   environment:
     STAGE: ${opt:stage, self:provider.stage, 'dev'}
-    APIKEY: '{{resolve:secretsmanager:api-key-${self:provider.stage}:SecretString:apikey}}'
+    API_KEY: '{{resolve:secretsmanager:api-key-${self:provider.stage}:SecretString:apikey}}'
 
 functions:
   IngestZip:
@@ -291,7 +291,7 @@ resources:
               Value: !Ref 'AWS::StackName'
             - Name: 'STAGE'
               Value: ${opt:stage, self:provider.stage, 'dev'}
-            - Name: 'APIKEY'
+            - Name: 'API_KEY'
               Value: '{{resolve:secretsmanager:api-key-${self:provider.stage}:SecretString:apikey}}'
           ResourceRequirements:
             - Type: 'VCPU'
