@@ -30,14 +30,14 @@ provider:
             - 's3:DeleteObject'
           Resource:
             - Fn::Join:
-              - ''
-              - - 'arn:aws:s3:::'
-                - Ref: S3BucketAnimlimagesingestion
+                - ''
+                - - 'arn:aws:s3:::'
+                  - Ref: S3BucketAnimlimagesingestion
             - Fn::Join:
-              - ''
-              - - 'arn:aws:s3:::'
-                - Ref: S3BucketAnimlimagesingestion
-                - '/*'
+                - ''
+                - - 'arn:aws:s3:::'
+                  - Ref: S3BucketAnimlimagesingestion
+                  - '/*'
         - Effect: Allow
           Action:
             - 'batch:SubmitJob'
@@ -48,12 +48,12 @@ provider:
           Action:
             - sqs:DeleteQueue
           Resource:
-            - !Sub "arn:aws:sqs:${AWS::Region}:${AWS::AccountId}:${AWS::StackName}-*"
+            - !Sub 'arn:aws:sqs:${AWS::Region}:${AWS::AccountId}:${AWS::StackName}-*'
         - Effect: Allow
           Action:
             - cloudwatch:DescribeAlarms
           Resource:
-            - !Sub "arn:aws:cloudwatch:${AWS::Region}:${AWS::AccountId}:alarm:*"
+            - !Sub 'arn:aws:cloudwatch:${AWS::Region}:${AWS::AccountId}:alarm:*'
         - Effect: Allow
           Action:
             - cloudwatch:DeleteAlarms
@@ -75,7 +75,7 @@ provider:
           Action:
             - cloudformation:ListStacks
           Resource:
-            - !Sub "arn:aws:cloudformation:${AWS::Region}:${AWS::AccountId}:stack/*"
+            - !Sub 'arn:aws:cloudformation:${AWS::Region}:${AWS::AccountId}:stack/*'
         - Effect: Allow
           Action:
             - cloudformation:DeleteStack
@@ -84,7 +84,7 @@ provider:
             - cloudformation:DescribeStackEvents
             - cloudformation:DescribeStackResources
           Resource:
-            - !Sub "arn:aws:cloudformation:${AWS::Region}:${AWS::AccountId}:stack/${AWS::StackName}-*"
+            - !Sub 'arn:aws:cloudformation:${AWS::Region}:${AWS::AccountId}:stack/${AWS::StackName}-*'
         - Effect: Allow
           Action:
             - ssm:GetParameter
@@ -95,7 +95,6 @@ provider:
   environment:
     STAGE: ${opt:stage, self:provider.stage, 'dev'}
     APIKEY: '{{resolve:secretsmanager:api-key-${self:provider.stage}:SecretString:apikey}}'
-
 
 functions:
   IngestZip:
@@ -142,7 +141,7 @@ resources:
       Properties:
         Action: lambda:InvokeFunction
         Principal: sns.amazonaws.com
-        SourceArn:  !Ref BatchZipNotifyDeleteSNS
+        SourceArn: !Ref BatchZipNotifyDeleteSNS
         FunctionName: !Sub IngestDelete-${opt:stage, self:provider.stage, 'dev'}
 
     BatchZipIngestQueue:
@@ -184,9 +183,9 @@ resources:
         Policies:
           - PolicyName:
               Fn::Join:
-                - "-"
-                - - !Ref "AWS::StackName"
-                  - "etl-policy"
+                - '-'
+                - - !Ref 'AWS::StackName'
+                  - 'etl-policy'
             PolicyDocument:
               Statement:
                 - Effect: Allow
@@ -197,17 +196,17 @@ resources:
                   Action:
                     - sqs:*
                   Resource:
-                    - !Sub "arn:aws:sqs:${AWS::Region}:${AWS::AccountId}:${AWS::StackName}-*"
+                    - !Sub 'arn:aws:sqs:${AWS::Region}:${AWS::AccountId}:${AWS::StackName}-*'
                 - Effect: Allow
                   Action:
                     - cloudformation:CreateStack
                   Resource:
-                    - !Sub "arn:aws:cloudformation:${AWS::Region}:${AWS::AccountId}:stack/*"
+                    - !Sub 'arn:aws:cloudformation:${AWS::Region}:${AWS::AccountId}:stack/*'
                 - Effect: Allow
                   Action:
                     - cloudwatch:DescribeAlarms
                   Resource:
-                    - !Sub "arn:aws:cloudwatch:${AWS::Region}:${AWS::AccountId}:alarm:*"
+                    - !Sub 'arn:aws:cloudwatch:${AWS::Region}:${AWS::AccountId}:alarm:*'
                 - Effect: Allow
                   Action:
                     - lambda:GetEventSourceMapping
@@ -228,7 +227,7 @@ resources:
                     - cloudformation:DescribeStackEvents
                     - cloudformation:DescribeStackResources
                   Resource:
-                    - !Sub "arn:aws:cloudformation:${AWS::Region}:${AWS::AccountId}:stack/${AWS::StackName}-*"
+                    - !Sub 'arn:aws:cloudformation:${AWS::Region}:${AWS::AccountId}:stack/${AWS::StackName}-*'
                 - Effect: Allow
                   Action: '*'
                   Resource:
@@ -255,9 +254,9 @@ resources:
             - Arn
         ComputeEnvironmentName:
           Fn::Join:
-            - "-"
-            - - !Ref "AWS::StackName"
-              - "batch-ingest"
+            - '-'
+            - - !Ref 'AWS::StackName'
+              - 'batch-ingest'
         State: ENABLED
         ComputeResources:
           Type: FARGATE
@@ -273,9 +272,9 @@ resources:
         Type: container
         JobDefinitionName:
           Fn::Join:
-            - "-"
-            - - !Ref "AWS::StackName"
-              - "batch-job"
+            - '-'
+            - - !Ref 'AWS::StackName'
+              - 'batch-job'
         PlatformCapabilities:
           - FARGATE
         RetryStrategy:
@@ -289,7 +288,7 @@ resources:
             AssignPublicIp: 'ENABLED'
           Environment:
             - Name: 'StackName'
-              Value: !Ref "AWS::StackName"
+              Value: !Ref 'AWS::StackName'
             - Name: 'STAGE'
               Value: ${opt:stage, self:provider.stage, 'dev'}
             - Name: 'APIKEY'
@@ -308,7 +307,7 @@ resources:
               - BatchJobRole
               - Arn
           ReadonlyRootFilesystem: false
-          Image: !Sub "${AWS::AccountId}.dkr.ecr.${AWS::Region}.amazonaws.com/serverless-animl-ingest-${self:provider.stage}:zip"
+          Image: !Sub '${AWS::AccountId}.dkr.ecr.${AWS::Region}.amazonaws.com/serverless-animl-ingest-${self:provider.stage}:zip'
 
     BatchExecRole:
       Type: AWS::IAM::Role
@@ -330,9 +329,9 @@ resources:
         VpcId: 'vpc-ad3816d5'
         GroupDescription:
           Fn::Join:
-            - " "
-            - - !Ref "AWS::StackName"
-              - " Batch Security Group"
+            - ' '
+            - - !Ref 'AWS::StackName'
+              - ' Batch Security Group'
         SecurityGroupIngress: []
 
     # Ingestion bucket
@@ -347,9 +346,9 @@ resources:
           RestrictPublicBuckets: true
         CorsConfiguration:
           CorsRules:
-            - AllowedHeaders: [ "*" ]
-              AllowedMethods: [ "PUT" ]
-              AllowedOrigins: [ "*" ]
+            - AllowedHeaders: ['*']
+              AllowedMethods: ['PUT']
+              AllowedOrigins: ['*']
               ExposedHeaders: ['ETag']
 
     # Bucket policy for animl-images-ingestion
@@ -360,15 +359,14 @@ resources:
           Ref: S3BucketAnimlimagesingestion
         PolicyDocument:
           Statement:
-            -
-              Action:
-                - "s3:*"
-              Effect: "Allow"
+            - Action:
+                - 's3:*'
+              Effect: 'Allow'
               Resource:
                 - "arn:aws:s3:::animl-images-ingestion-${opt:stage, self:provider.stage, 'dev'}/*"
                 - "arn:aws:s3:::animl-images-ingestion-${opt:stage, self:provider.stage, 'dev'}"
               Principal:
-                AWS: "arn:aws:iam::830244800171:user/animl-base"
+                AWS: 'arn:aws:iam::830244800171:user/animl-base'
 
     # Serving bucket
     S3BucketAnimlimagesserving:
@@ -438,14 +436,14 @@ resources:
       Properties:
         DistributionConfig:
           Origins:
-          - DomainName: animl-images-serving-${opt:stage, self:provider.stage, 'dev'}.s3.amazonaws.com
-            Id: !Ref S3BucketAnimlimagesserving
-            S3OriginConfig:
-              OriginAccessIdentity:
-                Fn::Join:
-                  - ""
-                  - - "origin-access-identity/cloudfront/"
-                    - !Ref CloudfrontOriginAccessIdentityAnimlimagesserving
+            - DomainName: animl-images-serving-${opt:stage, self:provider.stage, 'dev'}.s3.amazonaws.com
+              Id: !Ref S3BucketAnimlimagesserving
+              S3OriginConfig:
+                OriginAccessIdentity:
+                  Fn::Join:
+                    - ''
+                    - - 'origin-access-identity/cloudfront/'
+                      - !Ref CloudfrontOriginAccessIdentityAnimlimagesserving
           Enabled: 'true'
           Comment: "Cloudfront distro for animl images serving ${opt:stage, self:provider.stage, 'dev'} bucket"
           Logging:
@@ -457,12 +455,12 @@ resources:
           # - yoursite.example.com
           DefaultCacheBehavior:
             AllowedMethods:
-            - GET
-            - HEAD
-            - OPTIONS
+              - GET
+              - HEAD
+              - OPTIONS
             TargetOriginId: !Ref S3BucketAnimlimagesserving
-            MinTTL: 86400  # 1 day - perhaps adjust for staging?
-            MaxTTL: 31536000  # 1 year
+            MinTTL: 86400 # 1 day - perhaps adjust for staging?
+            MaxTTL: 31536000 # 1 year
             ForwardedValues:
               QueryString: 'false'
               Cookies:
@@ -470,10 +468,10 @@ resources:
             # TrustedSigners:
             # - 1234567890EX
             # - 1234567891EX
-            ViewerProtocolPolicy: "redirect-to-https"
+            ViewerProtocolPolicy: 'redirect-to-https'
           # PriceClass: PriceClass_200
           ViewerCertificate:
-              CloudFrontDefaultCertificate: 'true'
+            CloudFrontDefaultCertificate: 'true'
 
     # Bucket policy for serving bucket to allow cloudfront to access it
     S3BucketPolicyAnimlImagesServingBucketPolicy:
@@ -483,18 +481,17 @@ resources:
           Ref: S3BucketAnimlimagesserving
         PolicyDocument:
           Statement:
-            -
-              Action:
+            - Action:
                 - 's3:GetObject'
-              Effect: "Allow"
+              Effect: 'Allow'
               Resource:
                 - "arn:aws:s3:::animl-images-serving-${opt:stage, self:provider.stage, 'dev'}/*"
                 - "arn:aws:s3:::animl-images-serving-${opt:stage, self:provider.stage, 'dev'}"
               Principal:
                 AWS:
                   Fn::Join:
-                    - ""
-                    - - "arn:aws:iam::cloudfront:user/CloudFront Origin Access Identity "
+                    - ''
+                    - - 'arn:aws:iam::cloudfront:user/CloudFront Origin Access Identity '
                       - !Ref CloudfrontOriginAccessIdentityAnimlimagesserving
 
     # SSM Param for ingestion bucket
