@@ -21,7 +21,7 @@
         "image-size": "^1.1.1",
         "mime-types": "^2.1.35",
         "rimraf": "^5.0.0",
-        "sharp": "^0.32.0",
+        "sharp": "^0.33.4",
         "strtime": "^1.1.2"
     },
     "devDependencies": {

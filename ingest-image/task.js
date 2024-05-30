@@ -356,8 +356,19 @@ export default class Task {
       md.DateTimeOriginal = this.convert_datetime_to_ISO(md.DateTimeOriginal);
     }
 
+    let dimensions = {
+      width: md.ImageWidth || md.ExifImageWidth,
+      height: md.ImageHeight || md.ExifImageHeight,
+    };
+    if (!dimensions.width || !dimensions.height) {
+      const size = await this.image_size(`${this.tmp_dir}/${md.FileName}`);
+      dimensions = { ...size };
+    }
+
     md.Make = md.Make || 'unknown';
     md.MIMEType = md.MIMEType || mimetype || 'image/jpeg';
+    md.ImageWidth = dimensions.width;
+    md.ImageHeight = dimensions.height;
     md.SerialNumber = md.SerialNumber || 'unknown';
     md.ProdBucket = this.SERVING_BUCKET;
     md.Hash = await this.hash(md.FileName);
@@ -369,6 +380,12 @@ export default class Task {
 
   async byte_size(file) {
     return (await fsp.stat(file)).size;
+  }
+
+  async image_size(file) {
+    const sharpMetadata = await sharp(file).metadata();
+    console.log('sharpMetadata', sharpMetadata);
+    return { width: sharpMetadata.width, height: sharpMetadata.height };
   }
 
   validate(file_name) {
