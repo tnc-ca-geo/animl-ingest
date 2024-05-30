@@ -73,11 +73,11 @@ export default class Task {
 
         if (
           md.Key.match(
-            /^batch-(\b[0-9a-f]{8}\b-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-\b[0-9a-f]{12}\b)/,
+            /^batch-(\b[0-9a-f]{8}\b-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-\b[0-9a-f]{12}\b)/
           )
         ) {
           md.batchId = md.Key.match(
-            /^batch-\b[0-9a-f]{8}\b-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-\b[0-9a-f]{12}\b/,
+            /^batch-\b[0-9a-f]{8}\b-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-\b[0-9a-f]{12}\b/
           )[0];
         } else {
           md.batchId = null;
@@ -95,7 +95,7 @@ export default class Task {
             new S3.DeleteObjectCommand({
               Bucket: md.Bucket,
               Key: md.Key,
-            }),
+            })
           );
         } else if (ingest_type === IngestType.BATCH) {
           console.log('Processing as batch upload');
@@ -122,7 +122,7 @@ export default class Task {
         new SSM.GetParametersCommand({
           Names: Array.from(this.SSM.keys()),
           WithDecryption: true,
-        }),
+        })
       )
     ).Parameters) {
       this[this.SSM.get(param.Name)] = param.Value;
@@ -236,7 +236,7 @@ export default class Task {
     const Key = path.join(
       err.message || 'UNKNOWN_ERROR',
       md._id || 'UNKNOWN_ID',
-      path.parse(md.FileName).base,
+      path.parse(md.FileName).base
     );
     console.log(`Transferring image to s3://${Bucket}/${Key}`);
 
@@ -247,7 +247,7 @@ export default class Task {
         ContentType: md.MIMEType,
         Bucket: Bucket,
         Key: Key,
-      }),
+      })
     );
   }
 
@@ -264,7 +264,7 @@ export default class Task {
         ContentType: md.MIMEType,
         Bucket: Bucket,
         Key: Key,
-      }),
+      })
     );
   }
 
@@ -300,7 +300,7 @@ export default class Task {
             Bucket: Bucket,
             Key: Key,
             ContentType: md['MIMEType'],
-          }),
+          })
         );
       } else {
         // copy original image directly over from staging bucket
@@ -310,7 +310,7 @@ export default class Task {
             ContentType: md['MIMEType'],
             Bucket: Bucket,
             Key: Key,
-          }),
+          })
         );
       }
     }
@@ -332,7 +332,7 @@ export default class Task {
             key: md.Key,
           },
         }),
-      }),
+      })
     );
 
     return JSON.parse(JSON.parse(new TextDecoder().decode(data.Payload)).body);
@@ -400,10 +400,10 @@ export default class Task {
           new S3.GetObjectCommand({
             Bucket: md.Bucket,
             Key: md.Key,
-          }),
+          })
         )
       ).Body,
-      fs.createWriteStream(tmp_path),
+      fs.createWriteStream(tmp_path)
     );
 
     return tmp_path;
@@ -424,7 +424,7 @@ export default class Task {
             },
           ],
         },
-      }),
+      })
     );
   }
 }
