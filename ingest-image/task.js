@@ -164,7 +164,7 @@ export default class Task {
                         createImage(input: $input) {
                             imageAttempt {
                                 _id
-                                errors {
+                                errs {
                                   _id
                                   error
                                 }
@@ -182,7 +182,7 @@ export default class Task {
       console.log(`createImage res: ${JSON.stringify(imageAttempt)}`);
 
       md._id = imageAttempt._id;
-      const errors = imageAttempt.errors;
+      const errors = imageAttempt.errs;
 
       if (errors.length) {
         let msg = errors.length === 1 ? errors[0].error : 'MULTIPLE_ERRORS';
@@ -196,7 +196,7 @@ export default class Task {
       // backstop for unforeseen errors returned by the API
       // and errors resizing/copying the image to prod buckets.
       // Controlled errors during image record creation are returned
-      // to in the imageAttempt.errors payload and handled above
+      // to in the imageAttempt.errs payload and handled above
 
       console.error(`Error saving image: ${err}`);
 
