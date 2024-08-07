@@ -41,7 +41,7 @@ export async function handler(event) {
         new SSM.GetParametersCommand({
           Names: [`/api/url-${STAGE}`],
           WithDecryption: true,
-        }),
+        })
       )
     ).Parameters) {
       console.log(`ok - setting ${param.Name}`);
@@ -117,7 +117,7 @@ async function scheduledDelete(stage) {
     const res = await cf.send(
       new CloudFormation.ListStacksCommand({
         NextToken: nextToken,
-      }),
+      })
     );
 
     stacks.push(...res.StackSummaries);
@@ -142,7 +142,7 @@ async function scheduledDelete(stage) {
     const alarm = await cw.send(
       new CW.DescribeAlarmsCommand({
         AlarmNames: [`${stack.StackName}-sqs-empty`],
-      }),
+      })
     );
 
     if (alarm.MetricAlarms[0].StateValue === 'INSUFFICIENT_DATA') {
