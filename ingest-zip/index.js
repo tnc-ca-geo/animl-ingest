@@ -146,7 +146,7 @@ export default async function handler() {
     console.time('copying images to S3 @ 100 concurrency');
 
     let maxMemoryUsed = 0;
-    for await (const ms of asyncPool(500, images, async (entry) => {
+    for await (const ms of asyncPool(100, images, async (entry) => {
       const parsed = path.parse(entry.name);
       if (!parsed.ext) return `not ok - no extension: ${entry.name}`;
       if (parsed.base[0] === '.') return `not ok - hidden file: ${entry.name}`;
