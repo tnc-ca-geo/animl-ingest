@@ -297,7 +297,7 @@ resources:
             - Type: 'VCPU'
               Value: 1
             - Type: 'MEMORY'
-              Value: 4096
+              Value: 5120
           ExecutionRoleArn:
             Fn::GetAtt:
               - BatchExecRole

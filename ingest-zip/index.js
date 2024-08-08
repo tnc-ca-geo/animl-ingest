@@ -46,7 +46,7 @@ export default async function handler() {
         new SSM.GetParametersCommand({
           Names: [`/api/url-${STAGE}`],
           WithDecryption: true,
-        }),
+        })
       )
     ).Parameters) {
       console.log(`ok - setting ${param.Name}`);
@@ -59,10 +59,10 @@ export default async function handler() {
           new S3.GetObjectCommand({
             Bucket: task.Bucket,
             Key: task.Key,
-          }),
+          })
         )
       ).Body,
-      fs.createWriteStream(path.resolve(os.tmpdir(), 'input.zip')),
+      fs.createWriteStream(path.resolve(os.tmpdir(), 'input.zip'))
     );
 
     // Preparse Zip to get a general sense of how many items are in the zip
@@ -116,7 +116,7 @@ export default async function handler() {
             ParameterValue: `s3://${task.Bucket}/${task.Key}`,
           },
         ],
-      }),
+      })
     );
 
     await monitor(StackName);
@@ -143,20 +143,29 @@ export default async function handler() {
       images.push(entry);
     }
 
-    for await (const ms of asyncPool(1000, images, async (entry) => {
+    console.time('copying images to S3 @ 100 concurrency');
+
+    let maxMemoryUsed = 0;
+    for await (const ms of asyncPool(100, images, async (entry) => {
       const parsed = path.parse(entry.name);
-      if (!parsed.ext) return;
-      if (parsed.base[0] === '.') return;
-      if (!SUPPORTED_FILE_TYPES.includes(parsed.ext.toLowerCase())) return;
+      if (!parsed.ext) return `not ok - no extension: ${entry.name}`;
+      if (parsed.base[0] === '.') return `not ok - hidden file: ${entry.name}`;
+      if (!SUPPORTED_FILE_TYPES.includes(parsed.ext.toLowerCase()))
+        return `not ok - unsupported file type: ${entry.name}`;
 
       const data = await prezip.entryData(entry);
+
+      // NOTE: just for logging memory usage
+      if (process.memoryUsage().rss > maxMemoryUsed) {
+        maxMemoryUsed = process.memoryUsage().rss;
+      }
 
       await s3.send(
         new S3.PutObjectCommand({
           Bucket: task.Bucket,
           Key: `${batch}/${entry.name}`,
           Body: data,
-        }),
+        })
       );
 
       return `ok - written: ${batch}/${entry.name}`;
@@ -164,13 +173,16 @@ export default async function handler() {
       console.log(ms);
     }
 
+    console.timeEnd('copying images to S3 @ 100 concurrency');
+    console.log(`max memory used: ${maxMemoryUsed / 1024 / 1024} MB`);
+
     prezip.close();
 
     await s3.send(
       new S3.DeleteObjectCommand({
         Bucket: task.Bucket,
         Key: task.Key,
-      }),
+      })
     );
 
     console.log('ok - extraction complete');
