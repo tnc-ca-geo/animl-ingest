@@ -2,30 +2,17 @@
 
 Lambda function for ingesting and processing camera trap images.
 
-## Related repos
-
-- Animl API http://github.com/tnc-ca-geo/animl-api
-- Animl frontend http://github.com/tnc-ca-geo/animl-frontend
-- Animl base program http://github.com/tnc-ca-geo/animl-base
-- Animl ingest function http://github.com/tnc-ca-geo/animl-ingest
-- Exif service https://github.com/tnc-ca-geo/exif-api
-- Animl email extraction https://github.com/tnc-ca-geo/animl-email-relay
-- Animl ML resources http://github.com/tnc-ca-geo/animl-ml
-- Animl analytics http://github.com/tnc-ca-geo/animl-analytics
-
 ## About
 
-The animl-ingest stack is a collection of AWS resources managed by the
-[Serverless framework](https://www.serverless.com/). When users or applications
-such as [animl-base](http://github.com/tnc-ca-geo/animl-base) upload images to
-the `animl-staging-<stage>` bucket, a lambda function:
+The animl-ingest stack is a collection of AWS resources managed by the [Serverless framework](https://www.serverless.com/). When users or applications such as [animl-base](http://github.com/tnc-ca-geo/animl-base) upload images (or .zip files of images) to the `animl-staging-<stage>` bucket, one or more Lambda functions are fired and perform the following:
 
+- if a .zip file is detected (i.e. a user initiated a bulk upload from the animl-frontend user interface), the file is unzipped, the contents are validated, ML processing resources are dynamically spun up to process the batch, and the images are copied into the ingestion bucket
+- when new images are detected in the ingestion bucket, a separate lamnda (ingest-image) fires, which:
 - extracts EXIF metadata
 - creats a thumbnail of the image
 - stores the thumbnail and the original in buckets for production
   access
-- passes along the metadata in a POST request to a graphQL server to create a
-  record of the image metadata in a database
+- passes along the metadata in a POST request to a graphQL server to create a record of the image metadata in a database
 - deletes the image from the staging bucket
 
 ## Setup
