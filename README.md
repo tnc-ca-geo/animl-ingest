@@ -61,14 +61,22 @@ npm install --os=linux --cpu=x64 sharp
 From project root folder (where `serverless.yml` lives), run the following to deploy or update the stack:
 
 ```
+# Create keys
+./scripts/create-keys.sh dev
+
 # Deploy or update a development stack:
 serverless deploy --stage dev
+```
+
+## Prod deployment
+
+```
+# Create keys
+./scripts/create-keys.sh prod
 
 # Deploy or update a production stack:
 serverless deploy --stage prod
 ```
-
-## Prod deployment
 
 Use caution when deploying to production, as the application involves multiple stacks (animl-ingest, animl-api, animl-frontend), and often the deployments need to be synchronized. For major deployments to prod in which there are breaking changes that affect the other components of the stack, follow these steps:
 
