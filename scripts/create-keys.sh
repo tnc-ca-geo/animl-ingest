@@ -20,16 +20,16 @@ openssl rsa \
   -pubout \
   -out public.key
 
-echo "Creating public key secret..."
-aws secretsmanager create-secret \
-  --name cloudfront-signing-publickey-$STAGE \
-  --secret-string file://public.key \
+echo "Creating public key parameter..."
+aws ssm put-parameter \
+  --name /images/cloudfront-distribution-publickey-$STAGE \
+  --value file://public.key \
   --no-cli-pager \
   --description "Cloudfront signing public key for animl-images-serving-$STAGE"
 
-echo "Creating private key secret..."
-aws secretsmanager create-secret \
-  --name cloudfront-signing-privatekey-$STAGE \
-  --secret-string file://private.key \
+echo "Creating private key parameter..."
+aws ssm put-parameter \
+  --name /images/cloudfront-distribution-privatekey-$STAGE \
+  --value file://private.key \
   --no-cli-pager \
   --description "Cloudfront signing private key for animl-images-serving-$STAGE"

@@ -479,7 +479,7 @@ resources:
         PublicKeyConfig:
           CallerReference: c862d7765f496be0c8b6323876e70e162ebb4ab0a8
           Comment: animl-images-serving-${opt:stage, self:provider.stage, 'dev'}
-          EncodedKey: '{{resolve:secretsmanager:cloudfront-signing-publickey-${self:provider.stage}:SecretString}}'
+          EncodedKey: '{{resolve:ssm:/images/cloudfront-distribution-publickey-${self:provider.stage}}}'
           Name: AnimlServiceKey-${opt:stage, self:provider.stage, 'dev'}
 
     CloudFrontSigningKeyGroup:
