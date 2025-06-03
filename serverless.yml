@@ -473,6 +473,67 @@ resources:
           ViewerCertificate:
             CloudFrontDefaultCertificate: 'true'
 
+    CloudFrontSigningPublicKey:
+      Type: AWS::CloudFront::PublicKey
+      Properties:
+        PublicKeyConfig:
+          CallerReference: c862d7765f496be0c8b6323876e70e162ebb4ab0a8
+          Comment: animl-images-serving-${opt:stage, self:provider.stage, 'dev'}
+          EncodedKey: '{{resolve:secretsmanager:cloudfront-signing-publickey-${self:provider.stage}:SecretString}}'
+          Name: AnimlServiceKey-${opt:stage, self:provider.stage, 'dev'}
+
+    CloudFrontSigningKeyGroup:
+      Type: AWS::CloudFront::KeyGroup
+      Properties:
+        KeyGroupConfig:
+          Comment: animl-images-serving-${opt:stage, self:provider.stage, 'dev'}
+          Items:
+            - Ref: CloudFrontSigningPublicKey
+          Name: AnimlServiceKeyGroup-${opt:stage, self:provider.stage, 'dev'}
+      DependsOn:
+        - CloudFrontSigningPublicKey
+
+    CloudfrontDistributionAnimlPrivateImages:
+      DependsOn:
+        - S3BucketAnimlimagesserving
+        - CloudfrontOriginAccessIdentityAnimlimagesserving
+        - CloudFrontSigningKeyGroup
+      Type: AWS::CloudFront::Distribution
+      Properties:
+        DistributionConfig:
+          Origins:
+            - DomainName: animl-images-serving-${opt:stage, self:provider.stage, 'dev'}.s3.amazonaws.com
+              Id: !Ref S3BucketAnimlimagesserving
+              S3OriginConfig:
+                OriginAccessIdentity:
+                  Fn::Join:
+                    - ''
+                    - - 'origin-access-identity/cloudfront/'
+                      - !Ref CloudfrontOriginAccessIdentityAnimlimagesserving
+          Enabled: 'true'
+          Comment: "Private coudfront distro for animl images serving ${opt:stage, self:provider.stage, 'dev'} bucket"
+          Logging:
+            IncludeCookies: 'false'
+            Bucket: animllogs.s3.amazonaws.com
+            Prefix: animl-images-serving-${opt:stage, self:provider.stage, 'dev'}
+          DefaultCacheBehavior:
+            AllowedMethods:
+              - GET
+              - HEAD
+              - OPTIONS
+            TargetOriginId: !Ref S3BucketAnimlimagesserving
+            MinTTL: 86400
+            MaxTTL: 31536000
+            ForwardedValues:
+              QueryString: 'false'
+              Cookies:
+                Forward: none
+            Compress: true
+            TrustedKeyGroups: !Ref CloudFrontSigningKeyGroup
+            ViewerProtocolPolicy: 'redirect-to-https'
+          ViewerCertificate:
+            CloudFrontDefaultCertificate: 'true'
+
     # Bucket policy for serving bucket to allow cloudfront to access it
     S3BucketPolicyAnimlImagesServingBucketPolicy:
       Type: AWS::S3::BucketPolicy

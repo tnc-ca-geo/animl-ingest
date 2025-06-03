@@ -20,3 +20,4 @@ venv.bak/
 test.sh
 
 .DS_Store
+*.key
