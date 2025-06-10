@@ -479,7 +479,7 @@ resources:
         PublicKeyConfig:
           CallerReference: c862d7765f496be0c8b6323876e70e162ebb4ab0a8
           Comment: animl-images-serving-${opt:stage, self:provider.stage, 'dev'}
-          EncodedKey: '{{resolve:ssm:/images/cloudfront-distribution-publickey-${self:provider.stage}}}'
+          EncodedKey: !GetAtt KeyGeneratorFunction.PublicKey
           Name: AnimlServiceKey-${opt:stage, self:provider.stage, 'dev'}
 
     CloudFrontSigningKeyGroup:
@@ -622,3 +622,91 @@ resources:
           Fn::GetAtt: # grabs cloudfront url
             - CloudfrontDistributionAnimlimagesserving
             - DomainName
+
+    KeyGeneratorFunction:
+      Type: AWS::Lambda::Function
+      Properties:
+        Handler: index.handler
+        Role: !GetAtt KeyGeneratorRole.Arn
+        Runtime: nodejs18.x
+        Timeout: 30
+        Code:
+          ZipFile: |
+            const crypto = require('crypto');
+            const AWS = require('aws-sdk');
+            const response = require('cfn-response');
+
+            exports.handler = async (event, context) => {
+              try {
+                if (event.RequestType === 'Delete') {
+                  await response.send(event, context, response.SUCCESS);
+                  return;
+                }
+
+                // Generate RSA key pair
+                const { privateKey, publicKey } = crypto.generateKeyPairSync('rsa', {
+                  modulusLength: 2048,
+                  publicKeyEncoding: {
+                    type: 'spki',
+                    format: 'pem'
+                  },
+                  privateKeyEncoding: {
+                    type: 'pkcs8',
+                    format: 'pem'
+                  }
+                });
+
+                // Store keys in SSM Parameter Store
+                const ssm = new AWS.SSM();
+                await ssm.putParameter({
+                  Name: `/images/cloudfront-distribution-publickey-${event.ResourceProperties.Stage}`,
+                  Value: publicKey,
+                  Type: 'String',
+                  Description: `Cloudfront signing public key for animl-images-serving-${event.ResourceProperties.Stage}`
+                }).promise();
+
+                await ssm.putParameter({
+                  Name: `/images/cloudfront-distribution-privatekey-${event.ResourceProperties.Stage}`,
+                  Value: privateKey,
+                  Type: 'SecureString',
+                  Description: `Cloudfront signing private key for animl-images-serving-${event.ResourceProperties.Stage}`
+                }).promise();
+
+                await response.send(event, context, response.SUCCESS, {
+                  PublicKey: publicKey
+                });
+              } catch (error) {
+                console.error('Error:', error);
+                await response.send(event, context, response.FAILED, { error: error.message });
+              }
+            };
+
+    KeyGeneratorRole:
+      Type: AWS::IAM::Role
+      Properties:
+        AssumeRolePolicyDocument:
+          Version: '2012-10-17'
+          Statement:
+            - Effect: Allow
+              Principal:
+                Service: lambda.amazonaws.com
+              Action: sts:AssumeRole
+        ManagedPolicyArns:
+          - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+        Policies:
+          - PolicyName: KeyGeneratorPolicy
+            PolicyDocument:
+              Version: '2012-10-17'
+              Statement:
+                - Effect: Allow
+                  Action:
+                    - ssm:PutParameter
+                    - ssm:DeleteParameter
+                  Resource:
+                    - !Sub arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter/images/cloudfront-distribution-*
+
+    KeyGenerator:
+      Type: Custom::KeyGenerator
+      Properties:
+        ServiceToken: !GetAtt KeyGeneratorFunction.Arn
+        Stage: ${opt:stage, self:provider.stage, 'dev'}
