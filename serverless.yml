@@ -406,7 +406,7 @@ resources:
       Type: AWS::Lambda::Permission
       Properties:
         FunctionName:
-          Fn::GetAtt: # grabs function arn
+          Fn::GetAtt # grabs function arn
             - IngestImageLambdaFunction
             - Arn
         Principal: s3.amazonaws.com
@@ -470,6 +470,68 @@ resources:
             # - 1234567891EX
             ViewerProtocolPolicy: 'redirect-to-https'
           # PriceClass: PriceClass_200
+          ViewerCertificate:
+            CloudFrontDefaultCertificate: 'true'
+
+    CloudFrontSigningPublicKey:
+      Type: AWS::CloudFront::PublicKey
+      DependsOn: KeyGenerator
+      Properties:
+        PublicKeyConfig:
+          CallerReference: c862d7765f496be0c8b6323876e70e162ebb4ab0a8
+          Comment: animl-images-serving-${opt:stage, self:provider.stage, 'dev'}
+          EncodedKey: !GetAtt KeyGenerator.PublicKeyId
+          Name: AnimlServiceKey-${opt:stage, self:provider.stage, 'dev'}
+
+    CloudFrontSigningKeyGroup:
+      Type: AWS::CloudFront::KeyGroup
+      Properties:
+        KeyGroupConfig:
+          Comment: animl-images-serving-${opt:stage, self:provider.stage, 'dev'}
+          Items:
+            - Ref: CloudFrontSigningPublicKey
+          Name: AnimlServiceKeyGroup-${opt:stage, self:provider.stage, 'dev'}
+      DependsOn:
+        - CloudFrontSigningPublicKey
+
+    CloudfrontDistributionAnimlPrivateImages:
+      DependsOn:
+        - S3BucketAnimlimagesserving
+        - CloudfrontOriginAccessIdentityAnimlimagesserving
+        - CloudFrontSigningKeyGroup
+      Type: AWS::CloudFront::Distribution
+      Properties:
+        DistributionConfig:
+          Origins:
+            - DomainName: animl-images-serving-${opt:stage, self:provider.stage, 'dev'}.s3.amazonaws.com
+              Id: !Ref S3BucketAnimlimagesserving
+              S3OriginConfig:
+                OriginAccessIdentity:
+                  Fn::Join:
+                    - ''
+                    - - 'origin-access-identity/cloudfront/'
+                      - !Ref CloudfrontOriginAccessIdentityAnimlimagesserving
+          Enabled: 'true'
+          Comment: "Private coudfront distro for animl images serving ${opt:stage, self:provider.stage, 'dev'} bucket"
+          Logging:
+            IncludeCookies: 'false'
+            Bucket: animllogs.s3.amazonaws.com
+            Prefix: animl-images-serving-${opt:stage, self:provider.stage, 'dev'}
+          DefaultCacheBehavior:
+            AllowedMethods:
+              - GET
+              - HEAD
+              - OPTIONS
+            TargetOriginId: !Ref S3BucketAnimlimagesserving
+            MinTTL: 86400
+            MaxTTL: 31536000
+            ForwardedValues:
+              QueryString: 'false'
+              Cookies:
+                Forward: none
+            Compress: true
+            TrustedKeyGroups: !Ref CloudFrontSigningKeyGroup
+            ViewerProtocolPolicy: 'redirect-to-https'
           ViewerCertificate:
             CloudFrontDefaultCertificate: 'true'
 
@@ -561,3 +623,108 @@ resources:
           Fn::GetAtt: # grabs cloudfront url
             - CloudfrontDistributionAnimlimagesserving
             - DomainName
+
+    KeyGeneratorFunction:
+      Type: AWS::Lambda::Function
+      Properties:
+        Handler: index.handler
+        Role: !GetAtt KeyGeneratorRole.Arn
+        Runtime: nodejs18.x
+        Timeout: 30
+        Code:
+          ZipFile: |
+            const crypto = require('crypto');
+            const AWS = require('aws-sdk');
+            const response = require('cfn-response');
+
+            exports.handler = async (event, context) => {
+              try {
+                if (event.RequestType === 'Delete') {
+                  await response.send(event, context, response.SUCCESS);
+                  return;
+                }
+
+                // Generate RSA key pair
+                const { privateKey, publicKey } = crypto.generateKeyPairSync('rsa', {
+                  modulusLength: 2048,
+                  publicKeyEncoding: {
+                    type: 'spki',
+                    format: 'pem'
+                  },
+                  privateKeyEncoding: {
+                    type: 'pkcs8',
+                    format: 'pem'
+                  }
+                });
+
+                // Store private key in SSM Parameter Store
+                const ssm = new AWS.SSM();
+                await ssm.putParameter({
+                  Name: `/images/cloudfront-distribution-privatekey-${event.ResourceProperties.Stage}`,
+                  Value: privateKey,
+                  Type: 'SecureString',
+                  Description: `Cloudfront signing private key for animl-images-serving-${event.ResourceProperties.Stage}`
+                }).promise();
+
+                // Create CloudFront public key
+                const cloudfront = new AWS.CloudFront();
+                const publicKeyResponse = await cloudfront.createPublicKey({
+                  PublicKeyConfig: {
+                    CallerReference: Date.now().toString(),
+                    Name: `AnimlServiceKey-${event.ResourceProperties.Stage}`,
+                    EncodedKey: publicKey,
+                    Comment: `Cloudfront signing public key for animl-images-serving-${event.ResourceProperties.Stage}`
+                  }
+                }).promise();
+
+                // Store public key ID in SSM Parameter Store
+                await ssm.putParameter({
+                  Name: `/images/cloudfront-distribution-publickey-id-${event.ResourceProperties.Stage}`,
+                  Value: publicKeyResponse.PublicKey.Id,
+                  Type: 'String',
+                  Description: `Cloudfront signing public key ID for animl-images-serving-${event.ResourceProperties.Stage}`
+                }).promise();
+
+                await response.send(event, context, response.SUCCESS, {
+                  PublicKeyId: publicKeyResponse.PublicKey.Id
+                });
+              } catch (error) {
+                console.error('Error:', error);
+                await response.send(event, context, response.FAILED, { error: error.message });
+              }
+            };
+
+    KeyGeneratorRole:
+      Type: AWS::IAM::Role
+      Properties:
+        AssumeRolePolicyDocument:
+          Version: '2012-10-17'
+          Statement:
+            - Effect: Allow
+              Principal:
+                Service: lambda.amazonaws.com
+              Action: sts:AssumeRole
+        ManagedPolicyArns:
+          - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+        Policies:
+          - PolicyName: KeyGeneratorPolicy
+            PolicyDocument:
+              Version: '2012-10-17'
+              Statement:
+                - Effect: Allow
+                  Action:
+                    - ssm:PutParameter
+                    - ssm:DeleteParameter
+                  Resource:
+                    - !Sub arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter/images/cloudfront-distribution-*
+                - Effect: Allow
+                  Action:
+                    - cloudfront:CreatePublicKey
+                    - cloudfront:DeletePublicKey
+                  Resource: '*'
+
+    KeyGenerator:
+      Type: Custom::KeyGenerator
+      Properties:
+        ServiceToken: !GetAtt KeyGeneratorFunction.Arn
+        Stage: ${opt:stage, self:provider.stage, 'dev'}
