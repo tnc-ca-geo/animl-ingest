@@ -406,7 +406,7 @@ resources:
       Type: AWS::Lambda::Permission
       Properties:
         FunctionName:
-          Fn::GetAtt: # grabs function arn
+          Fn::GetAtt # grabs function arn
             - IngestImageLambdaFunction
             - Arn
         Principal: s3.amazonaws.com
@@ -475,11 +475,12 @@ resources:
 
     CloudFrontSigningPublicKey:
       Type: AWS::CloudFront::PublicKey
+      DependsOn: KeyGenerator
       Properties:
         PublicKeyConfig:
           CallerReference: c862d7765f496be0c8b6323876e70e162ebb4ab0a8
           Comment: animl-images-serving-${opt:stage, self:provider.stage, 'dev'}
-          EncodedKey: !GetAtt KeyGeneratorFunction.PublicKey
+          EncodedKey: !GetAtt KeyGenerator.PublicKeyId
           Name: AnimlServiceKey-${opt:stage, self:provider.stage, 'dev'}
 
     CloudFrontSigningKeyGroup:
@@ -656,15 +657,8 @@ resources:
                   }
                 });
 
-                // Store keys in SSM Parameter Store
+                // Store private key in SSM Parameter Store
                 const ssm = new AWS.SSM();
-                await ssm.putParameter({
-                  Name: `/images/cloudfront-distribution-publickey-${event.ResourceProperties.Stage}`,
-                  Value: publicKey,
-                  Type: 'String',
-                  Description: `Cloudfront signing public key for animl-images-serving-${event.ResourceProperties.Stage}`
-                }).promise();
-
                 await ssm.putParameter({
                   Name: `/images/cloudfront-distribution-privatekey-${event.ResourceProperties.Stage}`,
                   Value: privateKey,
@@ -672,8 +666,27 @@ resources:
                   Description: `Cloudfront signing private key for animl-images-serving-${event.ResourceProperties.Stage}`
                 }).promise();
 
+                // Create CloudFront public key
+                const cloudfront = new AWS.CloudFront();
+                const publicKeyResponse = await cloudfront.createPublicKey({
+                  PublicKeyConfig: {
+                    CallerReference: Date.now().toString(),
+                    Name: `AnimlServiceKey-${event.ResourceProperties.Stage}`,
+                    EncodedKey: publicKey,
+                    Comment: `Cloudfront signing public key for animl-images-serving-${event.ResourceProperties.Stage}`
+                  }
+                }).promise();
+
+                // Store public key ID in SSM Parameter Store
+                await ssm.putParameter({
+                  Name: `/images/cloudfront-distribution-publickey-id-${event.ResourceProperties.Stage}`,
+                  Value: publicKeyResponse.PublicKey.Id,
+                  Type: 'String',
+                  Description: `Cloudfront signing public key ID for animl-images-serving-${event.ResourceProperties.Stage}`
+                }).promise();
+
                 await response.send(event, context, response.SUCCESS, {
-                  PublicKey: publicKey
+                  PublicKeyId: publicKeyResponse.PublicKey.Id
                 });
               } catch (error) {
                 console.error('Error:', error);
@@ -704,6 +717,11 @@ resources:
                     - ssm:DeleteParameter
                   Resource:
                     - !Sub arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter/images/cloudfront-distribution-*
+                - Effect: Allow
+                  Action:
+                    - cloudfront:CreatePublicKey
+                    - cloudfront:DeletePublicKey
+                  Resource: '*'
 
     KeyGenerator:
       Type: Custom::KeyGenerator
