@@ -406,7 +406,7 @@ resources:
       Type: AWS::Lambda::Permission
       Properties:
         FunctionName:
-          Fn::GetAtt # grabs function arn
+          Fn::GetAtt: # grabs function arn
             - IngestImageLambdaFunction
             - Arn
         Principal: s3.amazonaws.com
