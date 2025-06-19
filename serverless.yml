@@ -429,6 +429,7 @@ resources:
         CloudFrontOriginAccessIdentityConfig:
           Comment: "orign access identity for animl images serving ${opt:stage, self:provider.stage, 'dev'} bucket"
 
+    # TODO: Remove this distribution once we are using only private cloudfront distro
     # Cloudfront distrobution for serving bucket
     # API docs - https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-resource-cloudfront-distribution.html
     CloudfrontDistributionAnimlimagesserving:
@@ -486,6 +487,14 @@ resources:
           EncodedKey: !GetAtt KeyGenerator.PublicKey
           Name: AnimlServiceKey-${opt:stage, self:provider.stage, 'dev'}
 
+    SSMParameterAnimlCloudfrontPublicKeyId:
+      Type: AWS::SSM::Parameter
+      Properties:
+        Description: Animl cloudfront key group
+        Name: /images/cloudfront-public-key-id-${opt:stage, self:provider.stage, 'dev'}
+        Type: String
+        Value: !Ref CloudFrontSigningPublicKey
+
     CloudFrontSigningKeyGroup:
       Type: AWS::CloudFront::KeyGroup
       Properties:
@@ -515,7 +524,7 @@ resources:
                     - - 'origin-access-identity/cloudfront/'
                       - !Ref CloudfrontOriginAccessIdentityAnimlimagesserving
           Enabled: 'true'
-          Comment: "Private coudfront distro for animl images serving ${opt:stage, self:provider.stage, 'dev'} bucket"
+          Comment: "Private cloudfront distro for animl images serving ${opt:stage, self:provider.stage, 'dev'} bucket"
           Logging:
             IncludeCookies: 'false'
             Bucket: animllogs.s3.amazonaws.com
@@ -533,7 +542,7 @@ resources:
               Cookies:
                 Forward: none
             Compress: true
-            TrustedKeyGroups: 
+            TrustedKeyGroups:
               - !Ref CloudFrontSigningKeyGroup
             ViewerProtocolPolicy: 'redirect-to-https'
           ViewerCertificate:
