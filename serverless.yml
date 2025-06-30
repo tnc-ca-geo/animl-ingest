@@ -13,12 +13,15 @@ provider:
       zip:
         path: ./ingest-zip/
         platform: linux/amd64
+        provenance: 'false'
       image:
         path: ./ingest-image/
         platform: linux/amd64
+        provenance: 'false'
       delete:
         path: ./ingest-delete/
         platform: linux/amd64
+        provenance: 'false'
 
   iam:
     role:
@@ -426,6 +429,7 @@ resources:
         CloudFrontOriginAccessIdentityConfig:
           Comment: "orign access identity for animl images serving ${opt:stage, self:provider.stage, 'dev'} bucket"
 
+    # TODO: Remove this distribution once we are using only private cloudfront distro
     # Cloudfront distrobution for serving bucket
     # API docs - https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-resource-cloudfront-distribution.html
     CloudfrontDistributionAnimlimagesserving:
@@ -478,10 +482,18 @@ resources:
       DependsOn: KeyGenerator
       Properties:
         PublicKeyConfig:
-          CallerReference: c862d7765f496be0c8b6323876e70e162ebb4ab0a8
+          CallerReference: !Sub '${AWS::Region}-${AWS::AccountId}-${AWS::StackId}'
           Comment: animl-images-serving-${opt:stage, self:provider.stage, 'dev'}
-          EncodedKey: !GetAtt KeyGenerator.PublicKeyId
+          EncodedKey: !GetAtt KeyGenerator.PublicKey
           Name: AnimlServiceKey-${opt:stage, self:provider.stage, 'dev'}
+
+    SSMParameterAnimlCloudfrontPublicKeyId:
+      Type: AWS::SSM::Parameter
+      Properties:
+        Description: Animl cloudfront key group
+        Name: /images/cloudfront-public-key-id-${opt:stage, self:provider.stage, 'dev'}
+        Type: String
+        Value: !Ref CloudFrontSigningPublicKey
 
     CloudFrontSigningKeyGroup:
       Type: AWS::CloudFront::KeyGroup
@@ -512,7 +524,7 @@ resources:
                     - - 'origin-access-identity/cloudfront/'
                       - !Ref CloudfrontOriginAccessIdentityAnimlimagesserving
           Enabled: 'true'
-          Comment: "Private coudfront distro for animl images serving ${opt:stage, self:provider.stage, 'dev'} bucket"
+          Comment: "Private cloudfront distro for animl images serving ${opt:stage, self:provider.stage, 'dev'} bucket"
           Logging:
             IncludeCookies: 'false'
             Bucket: animllogs.s3.amazonaws.com
@@ -530,7 +542,8 @@ resources:
               Cookies:
                 Forward: none
             Compress: true
-            TrustedKeyGroups: !Ref CloudFrontSigningKeyGroup
+            TrustedKeyGroups:
+              - !Ref CloudFrontSigningKeyGroup
             ViewerProtocolPolicy: 'redirect-to-https'
           ViewerCertificate:
             CloudFrontDefaultCertificate: 'true'
@@ -634,63 +647,78 @@ resources:
         Code:
           ZipFile: |
             const crypto = require('crypto');
-            const AWS = require('aws-sdk');
+            const { SSMClient, PutParameterCommand, DeleteParameterCommand } = require('@aws-sdk/client-ssm');
             const response = require('cfn-response');
 
-            exports.handler = async (event, context) => {
-              try {
-                if (event.RequestType === 'Delete') {
-                  await response.send(event, context, response.SUCCESS);
-                  return;
-                }
+            async function createKeyPair({ stackName, privateKeySsmName }) {
+              // Generate RSA key pair
+              const { privateKey, publicKey } = crypto.generateKeyPairSync('rsa', {
+                modulusLength: 2048,
+                publicKeyEncoding: {
+                  type: 'spki',
+                  format: 'pem',
+                },
+                privateKeyEncoding: {
+                  type: 'pkcs8',
+                  format: 'pem',
+                },
+              });
 
-                // Generate RSA key pair
-                const { privateKey, publicKey } = crypto.generateKeyPairSync('rsa', {
-                  modulusLength: 2048,
-                  publicKeyEncoding: {
-                    type: 'spki',
-                    format: 'pem'
-                  },
-                  privateKeyEncoding: {
-                    type: 'pkcs8',
-                    format: 'pem'
-                  }
-                });
-
-                // Store private key in SSM Parameter Store
-                const ssm = new AWS.SSM();
-                await ssm.putParameter({
-                  Name: `/images/cloudfront-distribution-privatekey-${event.ResourceProperties.Stage}`,
+              // Store private key in SSM Parameter Store
+              const ssmClient = new SSMClient();
+              await ssmClient.send(
+                new PutParameterCommand({
+                  Name: privateKeySsmName,
                   Value: privateKey,
                   Type: 'SecureString',
-                  Description: `Cloudfront signing private key for animl-images-serving-${event.ResourceProperties.Stage}`
-                }).promise();
+                  Description: `Cloudfront signing private key for ${stackName}`,
+                  Overwrite: true,
+                })
+              );
 
-                // Create CloudFront public key
-                const cloudfront = new AWS.CloudFront();
-                const publicKeyResponse = await cloudfront.createPublicKey({
-                  PublicKeyConfig: {
-                    CallerReference: Date.now().toString(),
-                    Name: `AnimlServiceKey-${event.ResourceProperties.Stage}`,
-                    EncodedKey: publicKey,
-                    Comment: `Cloudfront signing public key for animl-images-serving-${event.ResourceProperties.Stage}`
-                  }
-                }).promise();
+              console.log('Successfully created key pair');
+              return {
+                PublicKey: publicKey,
+                PrivateKeySsmName: privateKeySsmName,
+              };
+            }
 
-                // Store public key ID in SSM Parameter Store
-                await ssm.putParameter({
-                  Name: `/images/cloudfront-distribution-publickey-id-${event.ResourceProperties.Stage}`,
-                  Value: publicKeyResponse.PublicKey.Id,
-                  Type: 'String',
-                  Description: `Cloudfront signing public key ID for animl-images-serving-${event.ResourceProperties.Stage}`
-                }).promise();
+            async function deleteKeyPair({ privateKeySsmName }) {
+              const ssmClient = new SSMClient();
+              await ssmClient.send(
+                new DeleteParameterCommand({
+                  Name: privateKeySsmName,
+                })
+              );
+              console.log('Successfully deleted SSM parameter');
+              return { success: true };
+            }
 
-                await response.send(event, context, response.SUCCESS, {
-                  PublicKeyId: publicKeyResponse.PublicKey.Id
-                });
+            exports.handler = async (event, context) => {
+              console.log('Event', JSON.stringify(event));
+              console.log('Context', JSON.stringify(context));
+              try {
+                // Validate required properties
+                if (!event.ResourceProperties?.Stage) {
+                  throw new Error('Stage is required in ResourceProperties');
+                }
+
+                let stackName = `animl-images-serving-${event.ResourceProperties.Stage}`;
+                let privateKeySsmName = `/images/cloudfront-distribution-privatekey-${event.ResourceProperties.Stage}`;
+
+                let output;
+                if (event.RequestType === 'Create') {
+                  output = await createKeyPair({ stackName, privateKeySsmName });
+                } else if (event.RequestType === 'Delete') {
+                  output = await deleteKeyPair({ privateKeySsmName });
+                }
+
+                return response.send(event, context, response.SUCCESS, output);
               } catch (error) {
                 console.error('Error:', error);
-                await response.send(event, context, response.FAILED, { error: error.message });
+                return response.send(event, context, response.FAILED, {
+                  error: error.message,
+                });
               }
             };
 
