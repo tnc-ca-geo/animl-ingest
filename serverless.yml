@@ -634,7 +634,7 @@ resources:
         Type: String
         Value:
           Fn::GetAtt: # grabs cloudfront url
-            - CloudfrontDistributionAnimlimagesserving
+            - CloudfrontDistributionAnimlPrivateImages
             - DomainName
 
     KeyGeneratorFunction:
