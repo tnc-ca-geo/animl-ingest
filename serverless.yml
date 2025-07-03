@@ -482,7 +482,7 @@ resources:
       DependsOn: KeyGenerator
       Properties:
         PublicKeyConfig:
-          CallerReference: !Ref ${AWS::StackName}
+          CallerReference: !Ref AWS::StackName
           Comment: animl-images-serving-${opt:stage, self:provider.stage, 'dev'}
           EncodedKey: !GetAtt KeyGenerator.PublicKey
           Name: AnimlServiceKey-${opt:stage, self:provider.stage, 'dev'}
