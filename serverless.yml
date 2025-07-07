@@ -650,7 +650,7 @@ resources:
             const { SSMClient, PutParameterCommand, DeleteParameterCommand } = require('@aws-sdk/client-ssm');
             const response = require('cfn-response');
 
-            async function createKeyPair({ stackName, privateKeySsmName }) {
+            async function createKeyPair({ stackName, privateKeySsmName, publicKeySsmName }) {
               // Generate RSA key pair
               const { privateKey, publicKey } = crypto.generateKeyPairSync('rsa', {
                 modulusLength: 2048,
@@ -675,23 +675,41 @@ resources:
                   Overwrite: true,
                 })
               );
+              await ssmClient.send(
+                new PutParameterCommand({
+                  Name: publicKeySsmName,
+                  Value: publicKey,
+                  Type: 'String',
+                  Description: `Cloudfront signing public key for ${stackName}`,
+                  Overwrite: true,
+                })
+              );
 
               console.log('Successfully created key pair');
-              return {
-                PublicKey: publicKey,
-                PrivateKeySsmName: privateKeySsmName,
-              };
+              return publicKey;
             }
 
-            async function deleteKeyPair({ privateKeySsmName }) {
+            async function loadPublicKey({ publicKeySsmName }) {
+              const ssmClient = new SSMClient();
+              const response = await ssmClient.send(
+                new GetParameterCommand({ Name: publicKeySsmName })
+              );
+              return response.Parameter.Value;
+            }
+
+            async function deleteKeyPair({ privateKeySsmName, publicKeySsmName }) {
               const ssmClient = new SSMClient();
               await ssmClient.send(
                 new DeleteParameterCommand({
                   Name: privateKeySsmName,
                 })
               );
-              console.log('Successfully deleted SSM parameter');
-              return { success: true };
+              await ssmClient.send(
+                new DeleteParameterCommand({
+                  Name: publicKeySsmName,
+                })
+              );
+              console.log('Successfully deleted SSM parameters');
             }
 
             exports.handler = async (event, context) => {
@@ -705,15 +723,18 @@ resources:
 
                 let stackName = `animl-images-serving-${event.ResourceProperties.Stage}`;
                 let privateKeySsmName = `/images/cloudfront-distribution-privatekey-${event.ResourceProperties.Stage}`;
+                let publicKeySsmName = `/images/cloudfront-distribution-publickey-${event.ResourceProperties.Stage}`;
 
-                let output;
+                let publicKey;
                 if (event.RequestType === 'Create') {
-                  output = await createKeyPair({ stackName, privateKeySsmName });
+                  publicKey = await createKeyPair({ stackName, privateKeySsmName, publicKeySsmName });
+                } else if (event.RequestType === 'Update') {
+                  publicKey = await loadPublicKey({ publicKeySsmName });
                 } else if (event.RequestType === 'Delete') {
-                  output = await deleteKeyPair({ privateKeySsmName });
+                  publicKey = await deleteKeyPair({ privateKeySsmName, publicKeySsmName });
                 }
 
-                return response.send(event, context, response.SUCCESS, output);
+                return response.send(event, context, response.SUCCESS, { publicKey });
               } catch (error) {
                 console.error('Error:', error);
                 return response.send(event, context, response.FAILED, {
@@ -742,14 +763,10 @@ resources:
                 - Effect: Allow
                   Action:
                     - ssm:PutParameter
+                    - ssm:GetParameter
                     - ssm:DeleteParameter
                   Resource:
                     - !Sub arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter/images/cloudfront-distribution-*
-                - Effect: Allow
-                  Action:
-                    - cloudfront:CreatePublicKey
-                    - cloudfront:DeletePublicKey
-                  Resource: '*'
 
     KeyGenerator:
       Type: Custom::KeyGenerator
