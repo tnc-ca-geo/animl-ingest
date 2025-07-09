@@ -734,7 +734,7 @@ resources:
                   publicKey = await deleteKeyPair({ privateKeySsmName, publicKeySsmName });
                 }
 
-                return response.send(event, context, response.SUCCESS, { publicKey });
+                return response.send(event, context, response.SUCCESS, { PublicKey: publicKey });
               } catch (error) {
                 console.error('Error:', error);
                 return response.send(event, context, response.FAILED, {
