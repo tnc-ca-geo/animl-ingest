@@ -381,6 +381,12 @@ resources:
           BlockPublicPolicy: true
           IgnorePublicAcls: true
           RestrictPublicBuckets: true
+        CorsConfiguration:
+          CorsRules:
+            - AllowedOrigins: ['*']
+              AllowedMethods: ['GET']
+              AllowedHeaders: ['*']
+              ExposedHeaders: ['ETag']
 
     # Parking lot bucket
     S3BucketAnimlimagesparkinglot:
@@ -429,6 +435,39 @@ resources:
         CloudFrontOriginAccessIdentityConfig:
           Comment: "orign access identity for animl images serving ${opt:stage, self:provider.stage, 'dev'} bucket"
 
+    CloudfrontOriginRequestPolicyIAnimlimagesserving:
+      Type: AWS::CloudFront::OriginRequestPolicy
+      Properties:
+        OriginRequestPolicyConfig:
+          Name: AnimlIncludeOriginHeaderPolicy-${opt:stage, self:provider.stage, 'dev'}
+          Comment: Include Origin header for CORS
+          HeadersConfig:
+            HeaderBehavior: whitelist
+            Headers:
+              - Origin
+          CookiesConfig:
+            CookieBehavior: none
+          QueryStringsConfig:
+            QueryStringBehavior: none
+
+    CloudfrontCachePolicyIAnimlimagesserving:
+      Type: AWS::CloudFront::CachePolicy
+      Properties:
+        CachePolicyConfig:
+          Name: AnimlServingCachePolicy-${opt:stage, self:provider.stage, 'dev'}
+          DefaultTTL: 86400
+          MaxTTL: 31536000
+          MinTTL: 0
+          ParametersInCacheKeyAndForwardedToOrigin:
+            EnableAcceptEncodingGzip: true
+            EnableAcceptEncodingBrotli: true
+            HeadersConfig:
+              HeaderBehavior: none
+            CookiesConfig:
+              CookieBehavior: none
+            QueryStringsConfig:
+              QueryStringBehavior: none
+
     # TODO: Remove this distribution once we are using only private cloudfront distro
     # Cloudfront distrobution for serving bucket
     # API docs - https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-resource-cloudfront-distribution.html
@@ -469,6 +508,8 @@ resources:
               QueryString: 'false'
               Cookies:
                 Forward: none
+            CachePolicyId: !Ref CloudfrontCachePolicyIAnimlimagesserving
+            OriginRequestPolicyId: !Ref CloudfrontOriginRequestPolicyIAnimlimagesserving
             # TrustedSigners:
             # - 1234567890EX
             # - 1234567891EX
