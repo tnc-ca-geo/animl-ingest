@@ -157,6 +157,7 @@ export default class Task {
 
   async save_image(md) {
     try {
+      console.time('save_image api call');
       const imageAttempt = (
         await fetcher(this.ANIML_API_URL, {
           query: `
@@ -180,6 +181,7 @@ export default class Task {
         })
       ).data.createImage.imageAttempt;
       console.log(`createImage res: ${JSON.stringify(imageAttempt)}`);
+      console.timeEnd('save_image api call');
 
       md._id = imageAttempt._id;
       const errors = imageAttempt.errors;
