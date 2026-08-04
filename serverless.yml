@@ -6,7 +6,6 @@ provider:
   name: aws
   stage: ${opt:stage, 'dev'}
   region: us-west-2
-  profile: animl
 
   ecr:
     images:
@@ -400,7 +399,7 @@ resources:
     S3BucketAnimlimagesingestion:
       Type: AWS::S3::Bucket
       Properties:
-        BucketName: animl-images-ingestion-${opt:stage, self:provider.stage, 'dev'}
+        BucketName: animl-images-ingestion-${opt:stage, self:provider.stage, 'dev'}-${aws:accountId}
         PublicAccessBlockConfiguration:
           BlockPublicAcls: true
           BlockPublicPolicy: true
@@ -434,7 +433,7 @@ resources:
     S3BucketAnimlimagesserving:
       Type: AWS::S3::Bucket
       Properties:
-        BucketName: animl-images-serving-${opt:stage, self:provider.stage, 'dev'}
+        BucketName: animl-images-serving-${opt:stage, self:provider.stage, 'dev'}-${aws:accountId}
         PublicAccessBlockConfiguration:
           BlockPublicAcls: true
           BlockPublicPolicy: true
@@ -445,7 +444,7 @@ resources:
     S3BucketAnimlimagesparkinglot:
       Type: AWS::S3::Bucket
       Properties:
-        BucketName: animl-images-parkinglot-${opt:stage, self:provider.stage, 'dev'}
+        BucketName: animl-images-parkinglot-${opt:stage, self:provider.stage, 'dev'}-${aws:accountId}
         PublicAccessBlockConfiguration:
           BlockPublicAcls: true
           BlockPublicPolicy: true
@@ -456,7 +455,7 @@ resources:
     S3BucketAnimlimagesdeadletter:
       Type: AWS::S3::Bucket
       Properties:
-        BucketName: animl-images-dead-letter-${opt:stage, self:provider.stage, 'dev'}
+        BucketName: animl-images-dead-letter-${opt:stage, self:provider.stage, 'dev'}-${aws:accountId}
         PublicAccessBlockConfiguration:
           BlockPublicAcls: true
           BlockPublicPolicy: true
@@ -536,10 +535,10 @@ resources:
                       - !Ref CloudfrontOriginAccessIdentityAnimlimagesserving
           Enabled: 'true'
           Comment: "Private cloudfront distro for animl images serving ${opt:stage, self:provider.stage, 'dev'} bucket"
-          Logging:
-            IncludeCookies: 'false'
-            Bucket: animllogs.s3.amazonaws.com
-            Prefix: animl-images-serving-${opt:stage, self:provider.stage, 'dev'}
+          # Logging:
+          #   IncludeCookies: 'false'
+          #   Bucket: animllogs.s3.amazonaws.com
+          #   Prefix: animl-images-serving-${opt:stage, self:provider.stage, 'dev'}-${aws:accountId}
           DefaultCacheBehavior:
             AllowedMethods:
               - GET
