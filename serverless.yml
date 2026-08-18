@@ -353,6 +353,29 @@ resources:
               AllowedMethods: ['PUT']
               AllowedOrigins: ['*']
               ExposedHeaders: ['ETag']
+        # Versioning is enabled on this bucket out-of-band, so the DeleteObject that
+        # IngestImage issues after processing only writes a delete marker and retains the
+        # prior version indefinitely. Without these rules the "transient" staging bucket
+        # keeps every image ever ingested (~25 TB / ~$600 per month as of Aug 2026).
+        LifecycleConfiguration:
+          Rules:
+            - Id: abort-incomplete-multipart-uploads
+              Status: Enabled
+              AbortIncompleteMultipartUpload:
+                DaysAfterInitiation: 7
+            - Id: expire-noncurrent-versions
+              Status: Enabled
+              NoncurrentVersionExpiration:
+                NoncurrentDays: 7
+            - Id: remove-expired-delete-markers
+              Status: Enabled
+              ExpiredObjectDeleteMarker: true
+            # Nothing here is durable: images are deleted once processed and zips once
+            # extracted. Anything still present after 30 days is a failed or cancelled
+            # upload that will never be retried (Batch RetryStrategy.Attempts is 1).
+            - Id: expire-stale-staging-objects
+              Status: Enabled
+              ExpirationInDays: 30
 
     # Bucket policy for animl-images-ingestion
     S3BucketPolicyAnimlImagesIngestionBucketPolicy:
@@ -381,6 +404,13 @@ resources:
           BlockPublicPolicy: true
           IgnorePublicAcls: true
           RestrictPublicBuckets: true
+        # Durable product data: no object expiration here, only upload hygiene.
+        LifecycleConfiguration:
+          Rules:
+            - Id: abort-incomplete-multipart-uploads
+              Status: Enabled
+              AbortIncompleteMultipartUpload:
+                DaysAfterInitiation: 7
 
     # Parking lot bucket
     S3BucketAnimlimagesparkinglot:
@@ -392,6 +422,14 @@ resources:
           BlockPublicPolicy: true
           IgnorePublicAcls: true
           RestrictPublicBuckets: true
+        # Images held here during maintenance must survive until they are replayed,
+        # so this bucket gets no expiration rule either.
+        LifecycleConfiguration:
+          Rules:
+            - Id: abort-incomplete-multipart-uploads
+              Status: Enabled
+              AbortIncompleteMultipartUpload:
+                DaysAfterInitiation: 7
 
     # Dead letter bucket
     S3BucketAnimlimagesdeadletter:
@@ -403,6 +441,17 @@ resources:
           BlockPublicPolicy: true
           IgnorePublicAcls: true
           RestrictPublicBuckets: true
+        # Retained for triage only. A duplicate-image storm can add millions of objects
+        # here, so cap how long failed ingests are kept.
+        LifecycleConfiguration:
+          Rules:
+            - Id: abort-incomplete-multipart-uploads
+              Status: Enabled
+              AbortIncompleteMultipartUpload:
+                DaysAfterInitiation: 7
+            - Id: expire-failed-ingests
+              Status: Enabled
+              ExpirationInDays: 90
 
     # Lambda Permission grants the bucket permission to invoke the function
     LambdaPermissionAnimlimagesingestion:
