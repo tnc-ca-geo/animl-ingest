@@ -353,8 +353,8 @@ resources:
               AllowedMethods: ['PUT']
               AllowedOrigins: ['*']
               ExposedHeaders: ['ETag']
-        # Versioning is enabled on this bucket out-of-band, so the DeleteObject that
-        # IngestImage issues after processing only writes a delete marker and retains the
+        # Versioning was previously enabled on this bucket out-of-band, so the DeleteObject that
+        # IngestImage issued after processing only wrote a delete marker and retained the
         # prior version indefinitely. Without these rules the "transient" staging bucket
         # keeps every image ever ingested (~25 TB / ~$600 per month as of Aug 2026).
         LifecycleConfiguration:
@@ -404,6 +404,12 @@ resources:
           BlockPublicPolicy: true
           IgnorePublicAcls: true
           RestrictPublicBuckets: true
+        # Renditions are write-once, so versions only accumulate on deletion, and deletions
+        # are rare here (~9.5k objects/month against 46M). That makes this a ~$0.40/month
+        # undo buffer for DeleteImagesByFilter and the cascading project/deployment/camera
+        # deletes. Recovery procedure: see "Recovering deleted images" in the README.
+        VersioningConfiguration:
+          Status: Enabled
         # Durable product data: no object expiration here, only upload hygiene.
         LifecycleConfiguration:
           Rules:
@@ -411,6 +417,14 @@ resources:
               Status: Enabled
               AbortIncompleteMultipartUpload:
                 DaysAfterInitiation: 7
+            # 90 days reflects how long a bad delete may go unnoticed, not cost.
+            - Id: expire-noncurrent-versions
+              Status: Enabled
+              NoncurrentVersionExpiration:
+                NoncurrentDays: 90
+            - Id: remove-expired-delete-markers
+              Status: Enabled
+              ExpiredObjectDeleteMarker: true
 
     # Parking lot bucket
     S3BucketAnimlimagesparkinglot:

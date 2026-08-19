@@ -90,6 +90,59 @@ Use caution when deploying to production, as the application involves multiple s
 
 8. Copy any images that happened to land in `animl-images-parkinglot-prod` while the stacks were being deployed to `animl-images-ingestion-prod`, and then delete them from the parking lot bucket.
 
+## Recovering deleted images
+
+`animl-images-serving-prod` has versioning enabled with a **90 day** recovery window. A delete does not remove the object; it hides it behind a _delete marker_, and the previous version stays retrievable until the `expire-noncurrent-versions` lifecycle rule reaps it. Restoring is therefore just a matter of removing the delete marker.
+
+> **This restores image files only.** Deleting images also removes their `Image` documents from MongoDB — labels, bounding boxes, validations and comments live there, not in S3. A full recovery needs both an S3 restore _and_ a MongoDB restore (`npm run export-db-prod` snapshots, or Atlas point-in-time restore). Do the MongoDB side first, since the `_id` values are what the S3 keys are derived from.
+
+Each image is three objects, so a restore touches all three prefixes:
+
+```
+original/<imageId>-original.jpg
+medium/<imageId>-medium.jpg
+small/<imageId>-small.jpg
+```
+
+**1. Confirm the objects are recoverable.** If `DeleteMarkers` comes back empty, the deletion is older than 90 days and the versions are gone.
+
+```bash
+aws-vault exec animl -- aws s3api list-object-versions \
+  --bucket animl-images-serving-prod \
+  --prefix original/<imageId> \
+  --query '{markers: DeleteMarkers[?IsLatest].VersionId, versions: Versions[].VersionId}'
+```
+
+**2. Restore a single object** by deleting its delete marker:
+
+```bash
+aws-vault exec animl -- aws s3api delete-object \
+  --bucket animl-images-serving-prod \
+  --key original/<imageId>-original.jpg \
+  --version-id <deleteMarkerVersionId>
+```
+
+**3. Restore in bulk** — for a whole prefix, remove every current delete marker under it:
+
+```bash
+BUCKET=animl-images-serving-prod
+PREFIX=original/
+
+aws-vault exec animl -- aws s3api list-object-versions \
+  --bucket "$BUCKET" --prefix "$PREFIX" \
+  --query 'DeleteMarkers[?IsLatest].{Key:Key,VersionId:VersionId}' \
+  --output json > /tmp/markers.json
+
+# Review /tmp/markers.json before running the next step.
+jq -r '.[] | [.Key, .VersionId] | @tsv' /tmp/markers.json | \
+  while IFS=$'\t' read -r key vid; do
+    aws-vault exec animl -- aws s3api delete-object \
+      --bucket "$BUCKET" --key "$key" --version-id "$vid"
+  done
+```
+
+Because CloudFront caches aggressively (`MinTTL` 86400), invalidate the affected paths after a restore or the images will still 404 for users.
+
 ## Related repos
 
 Animl is comprised of a number of microservices, most of which are managed in their own repositories.
