@@ -6,6 +6,7 @@ provider:
   name: aws
   stage: ${opt:stage, 'dev'}
   region: us-west-2
+  profile: animl
 
   ecr:
     images:
@@ -399,7 +400,7 @@ resources:
     S3BucketAnimlimagesingestion:
       Type: AWS::S3::Bucket
       Properties:
-        BucketName: animl-images-ingestion-${opt:stage, self:provider.stage, 'dev'}-${aws:accountId}
+        BucketName: animl-images-ingestion-${opt:stage, self:provider.stage, 'dev'}
         PublicAccessBlockConfiguration:
           BlockPublicAcls: true
           BlockPublicPolicy: true
@@ -433,7 +434,7 @@ resources:
     S3BucketAnimlimagesserving:
       Type: AWS::S3::Bucket
       Properties:
-        BucketName: animl-images-serving-${opt:stage, self:provider.stage, 'dev'}-${aws:accountId}
+        BucketName: animl-images-serving-${opt:stage, self:provider.stage, 'dev'}
         PublicAccessBlockConfiguration:
           BlockPublicAcls: true
           BlockPublicPolicy: true
@@ -444,7 +445,7 @@ resources:
     S3BucketAnimlimagesparkinglot:
       Type: AWS::S3::Bucket
       Properties:
-        BucketName: animl-images-parkinglot-${opt:stage, self:provider.stage, 'dev'}-${aws:accountId}
+        BucketName: animl-images-parkinglot-${opt:stage, self:provider.stage, 'dev'}
         PublicAccessBlockConfiguration:
           BlockPublicAcls: true
           BlockPublicPolicy: true
@@ -455,7 +456,7 @@ resources:
     S3BucketAnimlimagesdeadletter:
       Type: AWS::S3::Bucket
       Properties:
-        BucketName: animl-images-dead-letter-${opt:stage, self:provider.stage, 'dev'}-${aws:accountId}
+        BucketName: animl-images-dead-letter-${opt:stage, self:provider.stage, 'dev'}
         PublicAccessBlockConfiguration:
           BlockPublicAcls: true
           BlockPublicPolicy: true
@@ -538,7 +539,7 @@ resources:
           # Logging:
           #   IncludeCookies: 'false'
           #   Bucket: animllogs.s3.amazonaws.com
-          #   Prefix: animl-images-serving-${opt:stage, self:provider.stage, 'dev'}-${aws:accountId}
+          #   Prefix: animl-images-serving-${opt:stage, self:provider.stage, 'dev'}
           DefaultCacheBehavior:
             AllowedMethods:
               - GET
