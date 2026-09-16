@@ -536,10 +536,10 @@ resources:
                       - !Ref CloudfrontOriginAccessIdentityAnimlimagesserving
           Enabled: 'true'
           Comment: "Private cloudfront distro for animl images serving ${opt:stage, self:provider.stage, 'dev'} bucket"
-          # Logging:
-          #   IncludeCookies: 'false'
-          #   Bucket: animllogs.s3.amazonaws.com
-          #   Prefix: animl-images-serving-${opt:stage, self:provider.stage, 'dev'}
+          Logging:
+            IncludeCookies: 'false'
+            Bucket: animllogs.s3.amazonaws.com
+            Prefix: animl-images-serving-${opt:stage, self:provider.stage, 'dev'}
           DefaultCacheBehavior:
             AllowedMethods:
               - GET
