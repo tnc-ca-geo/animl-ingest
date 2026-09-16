@@ -98,6 +98,7 @@ provider:
   environment:
     STAGE: ${opt:stage, self:provider.stage, 'dev'}
     API_KEY: '{{resolve:secretsmanager:api-key-${self:provider.stage}:SecretString:apikey}}'
+    SLS_INSTANCE_ID: ${sls:instanceId}
 
 functions:
   IngestZip:
@@ -119,7 +120,7 @@ functions:
     timeout: 20
     events:
       - s3:
-          bucket: animl-images-ingestion-${opt:stage, self:provider.stage, 'dev'}
+          bucket: !Ref S3BucketAnimlimagesingestion
           event: s3:ObjectCreated:*
           existing: true
 
@@ -234,8 +235,8 @@ resources:
                 - Effect: Allow
                   Action: '*'
                   Resource:
-                    - "arn:aws:s3:::animl-images-ingestion-${opt:stage, self:provider.stage, 'dev'}/*"
-                    - "arn:aws:s3:::animl-images-ingestion-${opt:stage, self:provider.stage, 'dev'}"
+                    - !Sub "${S3BucketAnimlimagesingestion.Arn}/*"
+                    - !Sub "${S3BucketAnimlimagesingestion.Arn}"
                 - Effect: Allow
                   Action:
                     - ecs:DescribeContainerInstances
@@ -265,7 +266,7 @@ resources:
           Type: FARGATE
           MaxvCpus: 128
           Subnets:
-            - 'subnet-c958fd83'
+            - !Ref PublicSubnet
           SecurityGroupIds:
             - !Ref BatchSecurityGroup
 
@@ -296,6 +297,8 @@ resources:
               Value: ${opt:stage, self:provider.stage, 'dev'}
             - Name: 'API_KEY'
               Value: '{{resolve:secretsmanager:api-key-${self:provider.stage}:SecretString:apikey}}'
+            - Name: 'DEPLOY_TS'
+              Value: '${sls:instanceId}'
           ResourceRequirements:
             - Type: 'VCPU'
               Value: 1
@@ -326,10 +329,66 @@ resources:
           - arn:aws:iam::aws:policy/service-role/AmazonECSTaskExecutionRolePolicy
         Path: '/'
 
+    Vpc:
+      Type: AWS::EC2::VPC
+      Properties:
+        CidrBlock: 10.0.0.0/16
+        EnableDnsSupport: true
+        EnableDnsHostnames: true
+        Tags:
+          - Key: Name
+            Value: !Sub ${AWS::StackName}-vpc
+
+    InternetGateway:
+      Type: AWS::EC2::InternetGateway
+      Properties:
+        Tags:
+          - Key: Name
+            Value: !Sub ${AWS::StackName}-igw
+
+    VpcGatewayAttachment:
+      Type: AWS::EC2::VPCGatewayAttachment
+      Properties:
+        VpcId: !Ref Vpc
+        InternetGatewayId: !Ref InternetGateway
+
+    PublicSubnet:
+      Type: AWS::EC2::Subnet
+      Properties:
+        VpcId: !Ref Vpc
+        CidrBlock: 10.0.0.0/24
+        MapPublicIpOnLaunch: true
+        AvailabilityZone: !Select [0, !GetAZs '']
+        Tags:
+          - Key: Name
+            Value: !Sub ${AWS::StackName}-public-subnet
+
+    PublicRouteTable:
+      Type: AWS::EC2::RouteTable
+      Properties:
+        VpcId: !Ref Vpc
+        Tags:
+          - Key: Name
+            Value: !Sub ${AWS::StackName}-public-rt
+
+    PublicRoute:
+      Type: AWS::EC2::Route
+      DependsOn: VpcGatewayAttachment
+      Properties:
+        RouteTableId: !Ref PublicRouteTable
+        DestinationCidrBlock: 0.0.0.0/0
+        GatewayId: !Ref InternetGateway
+
+    PublicSubnetRouteTableAssociation:
+      Type: AWS::EC2::SubnetRouteTableAssociation
+      Properties:
+        SubnetId: !Ref PublicSubnet
+        RouteTableId: !Ref PublicRouteTable
+
     BatchSecurityGroup:
       Type: AWS::EC2::SecurityGroup
       Properties:
-        VpcId: 'vpc-ad3816d5'
+        VpcId: !Ref Vpc
         GroupDescription:
           Fn::Join:
             - ' '
@@ -389,8 +448,8 @@ resources:
                 - 's3:*'
               Effect: 'Allow'
               Resource:
-                - "arn:aws:s3:::animl-images-ingestion-${opt:stage, self:provider.stage, 'dev'}/*"
-                - "arn:aws:s3:::animl-images-ingestion-${opt:stage, self:provider.stage, 'dev'}"
+                - !Sub "${S3BucketAnimlimagesingestion.Arn}/*"
+                - !Sub "${S3BucketAnimlimagesingestion.Arn}"
               Principal:
                 AWS: 'arn:aws:iam::830244800171:user/animl-base'
 
@@ -479,7 +538,7 @@ resources:
         Action: lambda:InvokeFunction
         SourceAccount:
           Ref: AWS::AccountId
-        SourceArn: arn:aws:s3:::animl-images-ingestion-${opt:stage, self:provider.stage, 'dev'}
+        SourceArn: !GetAtt S3BucketAnimlimagesingestion.Arn
 
     # TODO: SSL certificate for image serving bucket Cloudfront distrobution?
     # only need if we want a custom CNAME
@@ -490,55 +549,7 @@ resources:
       Type: AWS::CloudFront::CloudFrontOriginAccessIdentity
       Properties:
         CloudFrontOriginAccessIdentityConfig:
-          Comment: "orign access identity for animl images serving ${opt:stage, self:provider.stage, 'dev'} bucket"
-
-    # TODO: Remove this distribution once we are using only private cloudfront distro
-    # Cloudfront distrobution for serving bucket
-    # API docs - https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-resource-cloudfront-distribution.html
-    CloudfrontDistributionAnimlimagesserving:
-      DependsOn:
-        - S3BucketAnimlimagesserving
-        - CloudfrontOriginAccessIdentityAnimlimagesserving
-      Type: AWS::CloudFront::Distribution
-      Properties:
-        DistributionConfig:
-          Origins:
-            - DomainName: animl-images-serving-${opt:stage, self:provider.stage, 'dev'}.s3.amazonaws.com
-              Id: !Ref S3BucketAnimlimagesserving
-              S3OriginConfig:
-                OriginAccessIdentity:
-                  Fn::Join:
-                    - ''
-                    - - 'origin-access-identity/cloudfront/'
-                      - !Ref CloudfrontOriginAccessIdentityAnimlimagesserving
-          Enabled: 'true'
-          Comment: "Cloudfront distro for animl images serving ${opt:stage, self:provider.stage, 'dev'} bucket"
-          Logging:
-            IncludeCookies: 'false'
-            Bucket: animllogs.s3.amazonaws.com
-            Prefix: animl-images-serving-${opt:stage, self:provider.stage, 'dev'}
-          # Aliases:
-          # - mysite.example.com
-          # - yoursite.example.com
-          DefaultCacheBehavior:
-            AllowedMethods:
-              - GET
-              - HEAD
-              - OPTIONS
-            TargetOriginId: !Ref S3BucketAnimlimagesserving
-            MinTTL: 86400 # 1 day - perhaps adjust for staging?
-            MaxTTL: 31536000 # 1 year
-            ForwardedValues:
-              QueryString: 'false'
-              Cookies:
-                Forward: none
-            # TrustedSigners:
-            # - 1234567890EX
-            # - 1234567891EX
-            ViewerProtocolPolicy: 'redirect-to-https'
-          # PriceClass: PriceClass_200
-          ViewerCertificate:
-            CloudFrontDefaultCertificate: 'true'
+          Comment: "origin access identity for animl images serving ${opt:stage, self:provider.stage, 'dev'} bucket"
 
     CloudFrontSigningPublicKey:
       Type: AWS::CloudFront::PublicKey
@@ -546,7 +557,7 @@ resources:
       Properties:
         PublicKeyConfig:
           CallerReference: !Ref AWS::StackName
-          Comment: animl-images-serving-${opt:stage, self:provider.stage, 'dev'}
+          Comment: !Ref S3BucketAnimlimagesserving
           EncodedKey: !GetAtt KeyGenerator.PublicKey
           Name: AnimlServiceKey-${opt:stage, self:provider.stage, 'dev'}
 
@@ -562,7 +573,7 @@ resources:
       Type: AWS::CloudFront::KeyGroup
       Properties:
         KeyGroupConfig:
-          Comment: animl-images-serving-${opt:stage, self:provider.stage, 'dev'}
+          Comment: !Ref S3BucketAnimlimagesserving
           Items:
             - Ref: CloudFrontSigningPublicKey
           Name: AnimlServiceKeyGroup-${opt:stage, self:provider.stage, 'dev'}
@@ -578,7 +589,7 @@ resources:
       Properties:
         DistributionConfig:
           Origins:
-            - DomainName: animl-images-serving-${opt:stage, self:provider.stage, 'dev'}.s3.amazonaws.com
+            - DomainName: !GetAtt S3BucketAnimlimagesserving.DomainName
               Id: !Ref S3BucketAnimlimagesserving
               S3OriginConfig:
                 OriginAccessIdentity:
@@ -623,8 +634,8 @@ resources:
                 - 's3:GetObject'
               Effect: 'Allow'
               Resource:
-                - "arn:aws:s3:::animl-images-serving-${opt:stage, self:provider.stage, 'dev'}/*"
-                - "arn:aws:s3:::animl-images-serving-${opt:stage, self:provider.stage, 'dev'}"
+                - !Sub "${S3BucketAnimlimagesserving.Arn}/*"
+                - !Sub "${S3BucketAnimlimagesserving.Arn}"
               Principal:
                 AWS:
                   Fn::Join:
@@ -639,7 +650,7 @@ resources:
         Description: Animl images ingestion bucket name
         Name: /images/ingestion-bucket-${opt:stage, self:provider.stage, 'dev'}
         Type: String
-        Value: animl-images-ingestion-${opt:stage, self:provider.stage, 'dev'}
+        Value: !Ref S3BucketAnimlimagesingestion
 
     # SSM Param for batch queue
     SSMParameterAnimlBatchQueue:
@@ -668,7 +679,7 @@ resources:
         Description: Animl images serving bucket name
         Name: /images/serving-bucket-${opt:stage, self:provider.stage, 'dev'}
         Type: String
-        Value: animl-images-serving-${opt:stage, self:provider.stage, 'dev'}
+        Value: !Ref S3BucketAnimlimagesserving
 
     # SSM Param - parkinglot bucket
     SSMParameterAnimlimagesparkinglotbucket:
@@ -677,7 +688,7 @@ resources:
         Description: Animl images parking lot bucket name
         Name: /images/parkinglot-bucket-${opt:stage, self:provider.stage, 'dev'}
         Type: String
-        Value: animl-images-parkinglot-${opt:stage, self:provider.stage, 'dev'}
+        Value: !Ref S3BucketAnimlimagesparkinglot
 
     # SSM Param - dead-letter bucket
     SSMParameterAnimlimagesdeadletterbucket:
@@ -686,7 +697,7 @@ resources:
         Description: Animl images dead-letter bucket name
         Name: /images/dead-letter-bucket-${opt:stage, self:provider.stage, 'dev'}
         Type: String
-        Value: animl-images-dead-letter-${opt:stage, self:provider.stage, 'dev'}
+        Value: !Ref S3BucketAnimlimagesdeadletter
 
     # SSM Param - serving bucket cloudfront url
     SSMParameterAnimlimagesservingdistrobution:
