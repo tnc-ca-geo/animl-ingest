@@ -17,7 +17,7 @@ The animl-ingest stack is a collection of AWS resources managed by the [Serverle
 
 ## Setup
 
-### Prerequisits
+### Prerequisites
 
 The instructions below assume you have the following tools globally installed:
 
@@ -28,8 +28,14 @@ The instructions below assume you have the following tools globally installed:
 ### Create "animl" AWS config profile
 
 The name of the profile must be "animl", because that's what
-`serverles.yml` will be looking for. Good instructions
+`serverless.yml` will be looking for. Good instructions
 [here](https://www.serverless.com/framework/docs/providers/aws/guide/credentials/).
+
+If you are using aws-vault to manage your AWS credentials, you will need to wrap the deploy command
+and comment out the profile in the `serverless.yml`:
+```
+aws-vault exec animl-profile --no-session -- serverless deploy --stage dev
+```
 
 ### Make a project direcory and clone this repo
 
