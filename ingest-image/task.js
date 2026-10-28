@@ -138,6 +138,7 @@ export default class Task {
 
     const tmp_path = await this.download(md);
     const exif_data = await this.get_exif_data(md);
+    console.log("exif_data:", exif_data);
 
     const mimetype = mime.lookup(tmp_path);
     md = await this.enrich_meta_data(md, exif_data, mimetype);
